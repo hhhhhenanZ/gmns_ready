@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gmns-ready"
-version = "0.0.1"
+version = "0.0.4"
 authors = [
     {name = "Henan Zhu", email = "henanzhu@asu.edu"},
     {name = "Dr. Xuesong Zhou", email = "xzhou74@asu.edu"},

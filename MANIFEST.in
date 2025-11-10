@@ -1,0 +1,4 @@
+include README.md
+include LICENSE.txt
+recursive-include gmns_ready *.py
+recursive-include gmns_ready/GMNS_Tools *.exe *.csv *.py
