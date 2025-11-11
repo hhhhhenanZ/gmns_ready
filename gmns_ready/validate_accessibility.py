@@ -387,10 +387,16 @@ class AccessibilityValidator:
             return exact_path
         
         return None
-    
+
     def _find_gmns_tools(self):
-        """Find GMNS_Tools folder in current or parent directory"""
+        """Find GMNS_Tools folder in current, parent, or package directory"""
+        # Get package directory (where this script is located)
+        package_dir = os.path.dirname(os.path.abspath(__file__))
+
         search_locations = [
+            # First check package directory (for pip installed package)
+            os.path.join(package_dir, 'GMNS_Tools'),
+            # Then check current working directory
             'GMNS_Tools',
             'gmns_tools',
             os.path.join('..', 'GMNS_Tools'),

@@ -2,113 +2,114 @@
 GMNS Ready - Professional toolkit for GMNS transportation networks
 """
 
-__version__ = '0.0.4'
+__version__ = '0.0.5'
 __author__ = 'Henan Zhu, Xuesong Zhou, Han Zheng'
-__email__ = 'henanzhu@asu.edu'
+__email__ = 'henanzhu@asu.edu, xzhou74@asu.edu'
 
-# Import validation functions (these have proper function definitions)
-from .validate_assignment import run_validation as validate_assignment
+import os
+import sys
+import subprocess
 
 
-# For the script-based files, we need to create wrapper functions
-# These files run code directly, so we'll import them as modules
+def _run_script(script_name):
+    """Helper function to run a script and show its output"""
+    current_dir = os.path.dirname(__file__)
+    script_path = os.path.join(current_dir, script_name)
+
+    # Run script and show output in real-time
+    result = subprocess.run(
+        [sys.executable, script_path],
+        cwd=os.getcwd(),  # Run in current working directory
+        capture_output=False,  # Don't capture - let it print directly
+        text=True
+    )
+
+    if result.returncode != 0:
+        raise RuntimeError(f"Script {script_name} failed with exit code {result.returncode}")
+
+    return result
+
 
 def extract_zones():
-    """Extract zone centroids and boundaries from shapefile"""
-    import subprocess
-    import sys
-    import os
+    """
+    Extract zone centroids and boundaries from shapefile.
 
-    # Get the directory where this file is located
-    current_dir = os.path.dirname(__file__)
-    script_path = os.path.join(current_dir, 'extract_zones.py')
-
-    # Run the script
-    subprocess.run([sys.executable, script_path], check=True)
+    Auto-detects .shp file in data/ folder.
+    """
+    _run_script('extract_zones.py')
 
 
 def extract_zones_pop():
-    """Extract zones and fetch population data (US only)"""
-    import subprocess
-    import sys
-    import os
+    """
+    Extract zones and fetch population data (US only).
 
-    current_dir = os.path.dirname(__file__)
-    script_path = os.path.join(current_dir, 'extract_zones_pop.py')
-
-    subprocess.run([sys.executable, script_path], check=True)
+    Auto-detects .shp file in data/ folder and adds population column.
+    """
+    _run_script('extract_zones_pop.py')
 
 
 def clean_network():
-    """Remove disconnected components from OSM networks"""
-    import subprocess
-    import sys
-    import os
+    """
+    Remove disconnected components from OSM networks.
 
-    current_dir = os.path.dirname(__file__)
-    script_path = os.path.join(current_dir, 'clean_network.py')
-
-    subprocess.run([sys.executable, script_path], check=True)
+    Cleans node.csv and link.csv from osm2gmns.
+    """
+    _run_script('clean_network.py')
 
 
 def build_network():
-    """Generate zone-connected network with connectors"""
-    import subprocess
-    import sys
-    import os
+    """
+    Generate zone-connected network with connectors.
 
-    current_dir = os.path.dirname(__file__)
-    script_path = os.path.join(current_dir, 'build_network.py')
-
-    subprocess.run([sys.executable, script_path], check=True)
+    Uses zone.csv, node.csv, link.csv to create connected_network/ folder.
+    """
+    _run_script('build_network.py')
 
 
 def validate_basemap():
-    """Verify spatial alignment of input files"""
-    import subprocess
-    import sys
-    import os
+    """
+    Verify spatial alignment of input files.
 
-    current_dir = os.path.dirname(__file__)
-    script_path = os.path.join(current_dir, 'validate_basemap.py')
-
-    subprocess.run([sys.executable, script_path], check=True)
+    Checks that node.csv, link.csv, and zone shapefile are in same area.
+    """
+    _run_script('validate_basemap.py')
 
 
 def validate_network():
-    """Check network structure and topology"""
-    import subprocess
-    import sys
-    import os
+    """
+    Check network structure and topology.
 
-    current_dir = os.path.dirname(__file__)
-    script_path = os.path.join(current_dir, 'validate_network.py')
-
-    subprocess.run([sys.executable, script_path], check=True)
+    Validates connected_network/ folder.
+    """
+    _run_script('validate_network.py')
 
 
 def validate_accessibility():
-    """Analyze zone-to-zone connectivity"""
-    import subprocess
-    import sys
-    import os
+    """
+    Analyze zone-to-zone connectivity.
 
-    current_dir = os.path.dirname(__file__)
-    script_path = os.path.join(current_dir, 'validate_accessibility.py')
+    Uses TAPLite to compute accessibility matrix.
+    """
+    _run_script('validate_accessibility.py')
 
-    subprocess.run([sys.executable, script_path], check=True)
+
+def validate_assignment():
+    """
+    Verify traffic assignment readiness.
+
+    Checks VDF parameters in connected_network/ folder.
+    """
+    from .validate_assignment import run_validation
+    run_validation()
 
 
 def enhance_connectors():
-    """Add connectors for poorly connected zones"""
-    import subprocess
-    import sys
-    import os
+    """
+    Add connectors for poorly connected zones.
 
-    current_dir = os.path.dirname(__file__)
-    script_path = os.path.join(current_dir, 'enhance_connectors.py')
-
-    subprocess.run([sys.executable, script_path], check=True)
+    Adds 10 connectors per zone with low accessibility.
+    """
+    _run_script('enhance_connectors.py')
 
 
 # Public API
