@@ -2,28 +2,53 @@
 GMNS Ready - Professional toolkit for GMNS transportation networks
 """
 
-__version__ = '0.0.7'
+__version__ = '0.0.8'
 __author__ = 'Henan Zhu, Xuesong Zhou, Han Zheng'
-__email__ = 'henanzhu@asu.edu'
+__email__ = 'henanzhu@asu.edu, xzhou74@asu.edu'
 
 import os
 import sys
 import subprocess
+import io
 
 
 def _run_script(script_name):
-    """Helper function to run a script and stream its output in real-time"""
+    """Helper function to run a script and show its output (works in all environments)"""
     current_dir = os.path.dirname(__file__)
     script_path = os.path.join(current_dir, script_name)
 
-    # Run script with output streaming to parent process
-    # This ensures print statements appear immediately
-    result = subprocess.run(
-        [sys.executable, script_path],
-        cwd=os.getcwd(),
-        stdout=sys.stdout,  # Stream directly to console
-        stderr=sys.stderr,  # Stream errors directly to console
+    # Check if we're in an interactive environment (Jupyter/Spyder/IPython)
+    # These environments have special stdout that doesn't support fileno()
+    is_interactive = (
+            hasattr(sys.stdout, 'fileno') and
+            callable(getattr(sys.stdout, 'fileno', None))
     )
+
+    try:
+        if is_interactive:
+            # Try direct streaming (works in terminal)
+            result = subprocess.run(
+                [sys.executable, script_path],
+                cwd=os.getcwd(),
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+            )
+        else:
+            raise io.UnsupportedOperation("stdout doesn't support fileno")
+    except (io.UnsupportedOperation, AttributeError, OSError):
+        # Fall back to capture and print (works in Jupyter/Spyder)
+        result = subprocess.run(
+            [sys.executable, script_path],
+            cwd=os.getcwd(),
+            capture_output=True,
+            text=True,
+        )
+
+        # Print captured output
+        if result.stdout:
+            print(result.stdout, end='')
+        if result.stderr:
+            print(result.stderr, end='', file=sys.stderr)
 
     # If script failed, show helpful error
     if result.returncode != 0:
