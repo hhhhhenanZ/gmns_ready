@@ -283,7 +283,7 @@ def add_population_to_gdf(gdf, taz_column, year=2022, verbose=True):
         return gdf
     
     if verbose:
-        print("✓ US region detected")
+        print("[OK] US region detected")
     
     # Find GEOID column
     geoid_column = next((col for col in ['GEOID', 'GEOID20', 'GEOID10', 'GEOID_TRACT', 'GEOID_GEOCODED'] 
@@ -326,9 +326,9 @@ def add_population_to_gdf(gdf, taz_column, year=2022, verbose=True):
         matched = (gdf['population'] > 0).sum()
         total = len(gdf)
         total_pop = gdf['population'].sum()
-        print(f"✓ Population data: {matched}/{total} zones matched ({100*matched/total:.1f}%)")
+        print(f"[OK] Population data: {matched}/{total} zones matched ({100*matched/total:.1f}%)")
         if total_pop > 0:
-            print(f"✓ Total population: {total_pop:,}")
+            print(f"[OK] Total population: {total_pop:,}")
     
     return gdf
 
@@ -455,10 +455,10 @@ print("="*70 + "\n")
 
 try:
     gdf = gpd.read_file(shapefile_path)
-    print(f"✓ Loaded shapefile: {os.path.basename(shapefile_path)}")
+    print(f"[OK] Loaded shapefile: {os.path.basename(shapefile_path)}")
     print(f"  Features: {len(gdf)}")
 except Exception as e:
-    print(f"✗ Error loading shapefile: {e}")
+    print(f"[ERROR] Error loading shapefile: {e}")
     sys.exit()
 
 if gdf.crs is None:
@@ -489,7 +489,7 @@ output_csv_path = "zone.csv"
 save_centroids_to_csv(gdf, output_csv_path, taz_column)
 
 print(f"\n{'='*70}")
-print("✓ PROCESSING COMPLETE")
+print("[OK] PROCESSING COMPLETE")
 print(f"{'='*70}")
 print(f"Output: {output_csv_path}")
 if gdf['population'].sum() > 0:

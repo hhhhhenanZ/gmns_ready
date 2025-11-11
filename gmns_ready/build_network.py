@@ -209,8 +209,8 @@ def generate_connector_links(activity_node_df, node_taz_df, updated_link_df, upd
                 "is_link": 0
             })
     
-    print(f"  ✓ Connected {len(activity_node_df)} activity nodes to zones")
-    print(f"  ✓ {len(zones_with_activities)} zones have activity connectors")
+    print(f"  [OK] Connected {len(activity_node_df)} activity nodes to zones")
+    print(f"  [OK] {len(zones_with_activities)} zones have activity connectors")
     
     # Helper function: Find nearest link within search radius
     def find_nearest_link_in_radius(zone_centroid, zone_id, search_radius):
@@ -314,7 +314,7 @@ def generate_connector_links(activity_node_df, node_taz_df, updated_link_df, upd
         origin_node_id = best_link["from_node_id"]
         
         if origin_node_id not in node_coord_dict:
-            print(f"  ⚠️ Could not find origin node {origin_node_id}. Skipping zone {taz_id}.")
+            print(f"  [WARNING] Could not find origin node {origin_node_id}. Skipping zone {taz_id}.")
             continue
         
         origin_x, origin_y = node_coord_dict[origin_node_id]
@@ -345,7 +345,7 @@ def generate_connector_links(activity_node_df, node_taz_df, updated_link_df, upd
             })
     
     connected = len(zones_without_activities) - len(zones_beyond_search_radius)
-    print(f"  ✓ Connected {connected}/{len(zones_without_activities)} zones to network")
+    print(f"  [OK] Connected {connected}/{len(zones_without_activities)} zones to network")
     
     if zones_beyond_search_radius:
         if zone_to_network_radius is None:
@@ -370,7 +370,7 @@ def generate_connector_links(activity_node_df, node_taz_df, updated_link_df, upd
     for other_column in other_columns:
         connector_df[other_column] = None
     
-    print(f"\n✓ Total connector links generated: {len(connector_df)}")
+    print(f"\n[OK] Total connector links generated: {len(connector_df)}")
     
     if output_path:
         output_file = os.path.join(output_path, "connector_links.csv")
@@ -438,7 +438,7 @@ def update_and_merge_links(updated_link_df, connector_links_df, output_path):
     # Save as link.csv
     output_file = os.path.join(output_path, "link.csv")
     final_link_df.to_csv(output_file, index=False)
-    print(f"  ✓ Saved: {output_file}")
+    print(f"  [OK] Saved: {output_file}")
     
     return final_link_df
 
@@ -499,7 +499,7 @@ def create_updated_node_df(updated_node_df, node_taz_df, output_path):
     # Save as node.csv
     output_file = os.path.join(output_path, "node.csv")
     Node_Updated_df.to_csv(output_file, index=False)
-    print(f"  ✓ Saved: {output_file}")
+    print(f"  [OK] Saved: {output_file}")
     
     return Node_Updated_df
 

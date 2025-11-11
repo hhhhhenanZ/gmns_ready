@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gmns-ready"
-version = "0.0.8"
+version = "0.0.9"
 authors = [
     {name = "Henan Zhu", email = "henanzhu@asu.edu"},
     {name = "Dr. Xuesong Zhou", email = "xzhou74@asu.edu"},
@@ -14,7 +14,7 @@ description = "Tools for preparing and validating GMNS transportation network da
 readme = "README.md"
 requires-python = ">=3.7"
 license = {text = "MIT"}
-keywords = ["transportation", "gmns", "network-modeling", "open-source", "urban-planning"]
+keywords = ["transportation", "gmns", "network-modeling", "open-source", "urban-planning", "traffic-assignment"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
@@ -26,6 +26,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
 ]
 
 dependencies = [
@@ -37,6 +38,7 @@ dependencies = [
     "matplotlib>=3.3.0",
     "networkx>=2.6.0",
     "requests>=2.26.0",
+    "DTALite>=0.8.1",
 ]
 
 [project.urls]
@@ -50,8 +52,6 @@ include = ["gmns_ready*"]
 
 [tool.setuptools.package-data]
 gmns_ready = [
-    "GMNS_Tools/*",
-    "GMNS_Tools/*.exe",
     "GMNS_Tools/*.csv",
     "GMNS_Tools/*.txt",
 ]

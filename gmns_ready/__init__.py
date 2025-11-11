@@ -2,7 +2,7 @@
 GMNS Ready - Professional toolkit for GMNS transportation networks
 """
 
-__version__ = '0.0.8'
+__version__ = '0.0.9'
 __author__ = 'Henan Zhu, Xuesong Zhou, Han Zheng'
 __email__ = 'henanzhu@asu.edu, xzhou74@asu.edu'
 
@@ -207,11 +207,13 @@ def validate_network():
 
 def validate_accessibility():
     """
-    Analyze zone-to-zone connectivity using TAPLite.
+    Analyze zone-to-zone connectivity using DTALite.
 
     Requirements:
+        - DTALite package (pip install DTALite)
         - connected_network/node.csv
         - connected_network/link.csv
+        - settings.csv
 
     Outputs:
         - connected_network/accessibility_validation_report.json

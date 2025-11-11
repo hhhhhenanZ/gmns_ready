@@ -1,13 +1,12 @@
 """
-Accessibility Validator for GMNS Networks
-Runs traffic assignment and validates accessibility metrics
+Accessibility Validator for GMNS Networks (All Platforms)
+Uses DTALite Python package on Windows, Linux, and Mac
 @author: hnzhu
 """
 
 import os
 import sys
 import json
-import subprocess
 import shutil
 import pandas as pd
 from pathlib import Path
@@ -23,16 +22,17 @@ class AccessibilityValidator:
         """
         Args:
             network_dir: Directory containing node.csv and link.csv
-            gmns_tools_dir: Directory containing DTALite executable and settings.csv
+            gmns_tools_dir: Optional directory containing settings.csv
         """
         self.network_dir = network_dir
         self.gmns_tools_dir = gmns_tools_dir
-        self.taplite_exe = None
         self.settings_file = None
+        self.dtalite_available = False
         
         self.results = {
             'timestamp': datetime.now().isoformat(),
             'network_dir': network_dir,
+            'method': 'python_package',
             'accessibility_check': {},
             'issues': [],
             'summary': {'status': 'PASS', 'errors': 0, 'warnings': 0}
@@ -47,7 +47,7 @@ class AccessibilityValidator:
         all_passed = True
         
         try:
-            # Check prerequisites (silently unless there's an issue)
+            # Check prerequisites
             prereq_ok = self._check_prerequisites()
             if not prereq_ok:
                 all_passed = False
@@ -57,7 +57,7 @@ class AccessibilityValidator:
                 self._print_final_summary()
                 return self.results
             
-            # Prepare network (silently unless there's an issue)
+            # Prepare network
             prep_ok = self._prepare_network()
             if not prep_ok:
                 all_passed = False
@@ -106,39 +106,56 @@ class AccessibilityValidator:
         if not node_file:
             self._add_issue('ERROR', 'node.csv not found in network directory', 'prereq_files')
             check_result['passed'] = False
-            issues.append("✗ node.csv - NOT FOUND")
+            issues.append("[ERROR] node.csv - NOT FOUND")
         
         if not link_file:
             self._add_issue('ERROR', 'link.csv not found in network directory', 'prereq_files')
             check_result['passed'] = False
-            issues.append("✗ link.csv - NOT FOUND")
+            issues.append("[ERROR] link.csv - NOT FOUND")
         
-        # Check GMNS Tools
+        # Check for DTALite package
+        print("Method: DTALite Python package")
+        try:
+            import DTALite
+            self.dtalite_available = True
+            print(f"  [OK] DTALite package found (version: {getattr(DTALite, '__version__', 'unknown')})")
+        except ImportError:
+            self._add_issue('ERROR', 
+                          'DTALite package not found. Install with: pip install DTALite', 
+                          'prereq_tools')
+            check_result['passed'] = False
+            issues.append("[ERROR] DTALite package - NOT FOUND")
+            issues.append("         Install with: pip install DTALite")
+        
+        # Check for settings.csv
         if not self.gmns_tools_dir:
             self.gmns_tools_dir = self._find_gmns_tools()
         
-        if not self.gmns_tools_dir:
-            self._add_issue('ERROR', 'GMNS_Tools directory not found. Suggestion: Create GMNS_Tools folder with DTALite executable and settings.csv', 'prereq_tools')
-            check_result['passed'] = False
-            issues.append("✗ GMNS_Tools directory - NOT FOUND")
-        else:
-            # Check DTALite executable
-            self.taplite_exe = self._find_taplite_exe()
-            if not self.taplite_exe:
-                self._add_issue('ERROR', 'DTALite executable not found in GMNS_Tools. Suggestion: Add TAPLite*.exe to GMNS_Tools folder', 'prereq_tools')
-                check_result['passed'] = False
-                issues.append("✗ DTALite executable - NOT FOUND")
-            
-            # Check settings.csv
+        if self.gmns_tools_dir:
             self.settings_file = self._find_settings_file()
+        
+        if not self.settings_file:
+            # Try to find settings.csv in network_dir or current directory
+            alt_locations = [
+                os.path.join(self.network_dir, 'settings.csv'),
+                'settings.csv'
+            ]
+            for loc in alt_locations:
+                if os.path.exists(loc):
+                    self.settings_file = os.path.abspath(loc)
+                    break
+            
             if not self.settings_file:
-                self._add_issue('ERROR', 'settings.csv not found in GMNS_Tools. Suggestion: Add settings.csv to GMNS_Tools folder', 'prereq_tools')
+                self._add_issue('ERROR', 
+                              'settings.csv not found. Suggestion: Add settings.csv to GMNS_Tools folder or network directory', 
+                              'prereq_tools')
                 check_result['passed'] = False
-                issues.append("✗ settings.csv - NOT FOUND")
+                issues.append("[ERROR] settings.csv - NOT FOUND")
+                issues.append("         Create settings.csv with DTALite configuration")
         
         # Only print details if there are issues
         if issues:
-            print("Prerequisites check:")
+            print("\nPrerequisites check:")
             for issue in issues:
                 print(f"  {issue}")
             print()
@@ -155,11 +172,12 @@ class AccessibilityValidator:
         }
         
         try:
-            # Copy settings.csv to network directory
+            # Copy settings.csv to network directory if not already there
             dest_settings = os.path.join(self.network_dir, 'settings.csv')
             
             if not os.path.exists(dest_settings):
                 shutil.copy2(self.settings_file, dest_settings)
+                print(f"  Copied settings.csv to {self.network_dir}/")
             
         except Exception as e:
             self._add_issue('ERROR', f'Failed to copy settings.csv: {str(e)}', 'preparation')
@@ -170,7 +188,7 @@ class AccessibilityValidator:
         return prep_result['passed']
     
     def _run_assignment(self):
-        """Execute DTALite traffic assignment"""
+        """Execute DTALite traffic assignment using Python package"""
         assignment_result = {
             'name': 'Traffic Assignment',
             'checks': [],
@@ -182,65 +200,52 @@ class AccessibilityValidator:
             original_dir = os.getcwd()
             os.chdir(self.network_dir)
             
-            # Run DTALite executable
-            result = subprocess.run(
-                [self.taplite_exe],
-                capture_output=True,
-                text=True,
-                timeout=300  # 5 minute timeout
-            )
+            # Import DTALite
+            import DTALite as dta
+            
+            # Run assignment
+            print("  Running dta.assignment()...")
+            dta.assignment()
             
             # Change back to original directory
             os.chdir(original_dir)
             
-            # Check if assignment completed successfully
-            if result.returncode != 0:
+            # Check if output files were created
+            zone_acc_file = os.path.join(self.network_dir, 'zone_accessibility.csv')
+            if not os.path.exists(zone_acc_file):
                 self._add_issue('ERROR', 
-                              f'DTALite execution failed (exit code {result.returncode}). Check network files for errors.',
-                              'assignment_execution')
+                              'zone_accessibility.csv not generated. Check network connectivity and demand.',
+                              'assignment_output')
+                print(f"[ERROR] zone_accessibility.csv not generated")
                 assignment_result['passed'] = False
-                print(f"✗ DTALite failed (exit code {result.returncode})")
-                if result.stderr:
-                    print(f"  Error: {result.stderr[-200:]}")
             else:
-                # Check for output files
-                output_files = ['link_performance.csv', 'zone_accessibility.csv']
-                missing_files = []
-                
-                for output_file in output_files:
-                    output_path = os.path.join(self.network_dir, output_file)
-                    if not os.path.exists(output_path):
-                        missing_files.append(output_file)
-                
-                if missing_files:
-                    self._add_issue('WARNING', 
-                                  f'Expected output files not generated: {", ".join(missing_files)}',
-                                  'assignment_outputs')
-                    print(f"⚠ Missing output files: {', '.join(missing_files)}")
-                else:
-                    print(f"✓ DTALite completed successfully")
+                print("  [OK] Assignment completed successfully")
             
-        except subprocess.TimeoutExpired:
-            self._add_issue('ERROR', 'DTALite execution timed out (>5 minutes). Network may be too large or have issues.', 'assignment_timeout')
-            assignment_result['passed'] = False
-            print(f"✗ DTALite timed out")
-            os.chdir(original_dir)
         except Exception as e:
-            self._add_issue('ERROR', f'Error running DTALite: {str(e)}', 'assignment_error')
-            assignment_result['passed'] = False
-            print(f"✗ Error: {str(e)}")
+            # Make sure we return to original directory even if there's an error
             try:
                 os.chdir(original_dir)
             except:
                 pass
+            
+            self._add_issue('ERROR', f'Error running DTALite package: {str(e)}', 'assignment_execution')
+            print(f"[ERROR] {str(e)}")
+            assignment_result['passed'] = False
+            
+            # Provide helpful message
+            error_msg = str(e).lower()
+            if 'no module named' in error_msg:
+                print("  Suggestion: Install DTALite with: pip install DTALite")
+            elif 'settings' in error_msg or 'file not found' in error_msg:
+                print("  Suggestion: Ensure settings.csv is in the network directory")
         
         self.results['accessibility_check']['assignment'] = assignment_result
         return assignment_result['passed']
     
     def _validate_accessibility_results(self):
-        """Validate accessibility calculation results"""
+        """Validate accessibility outputs"""
         validation_result = {
-            'name': 'Accessibility Results Validation',
+            'name': 'Results Validation',
             'checks': [],
             'passed': True
         }
@@ -248,71 +253,64 @@ class AccessibilityValidator:
         issues = []
         
         # Check zone_accessibility.csv
-        accessibility_file = os.path.join(self.network_dir, 'zone_accessibility.csv')
+        zone_acc_file = os.path.join(self.network_dir, 'zone_accessibility.csv')
         
-        if not os.path.exists(accessibility_file):
-            self._add_issue('ERROR', 
-                          'zone_accessibility.csv not generated. Check if traffic assignment completed successfully.',
-                          'accessibility_output')
+        if not os.path.exists(zone_acc_file):
+            self._add_issue('ERROR', 'zone_accessibility.csv not found after assignment', 'accessibility_output')
             validation_result['passed'] = False
-            issues.append("✗ zone_accessibility.csv - NOT FOUND")
+            issues.append("[ERROR] zone_accessibility.csv - NOT FOUND")
         else:
             try:
-                # Read accessibility results
-                accessibility_df = pd.read_csv(accessibility_file)
-                total_zones = len(accessibility_df)
+                accessibility_df = pd.read_csv(zone_acc_file)
                 
-                print(f"Zone accessibility results ({total_zones} zones):")
+                print(f"  [OK] zone_accessibility.csv generated ({len(accessibility_df)} zones)")
                 
-                # Check origin_count and destination_count
+                # Check for required columns
+                required_cols = ['zone_id']
+                missing_cols = [col for col in required_cols if col not in accessibility_df.columns]
+                
+                if missing_cols:
+                    self._add_issue('WARNING', 
+                                  f'zone_accessibility.csv missing columns: {", ".join(missing_cols)}',
+                                  'accessibility_columns')
+                    issues.append(f"[WARNING] Missing columns: {', '.join(missing_cols)}")
+                
+                # Check connectivity metrics
                 if 'origin_count' in accessibility_df.columns and 'destination_count' in accessibility_df.columns:
                     origin_counts = accessibility_df['origin_count'].dropna()
                     dest_counts = accessibility_df['destination_count'].dropna()
                     
                     if len(origin_counts) > 0 and len(dest_counts) > 0:
-                        # Print statistics
-                        print(f"  origin_count:      min={origin_counts.min():.0f}, avg={origin_counts.mean():.0f}, max={origin_counts.max():.0f}")
-                        print(f"  destination_count: min={dest_counts.min():.0f}, avg={dest_counts.mean():.0f}, max={dest_counts.max():.0f}")
+                        zones_with_no_origins = (accessibility_df['origin_count'] == 0).sum()
+                        zones_with_no_dests = (accessibility_df['destination_count'] == 0).sum()
                         
-                        # Check for zones with 0 origin_count
-                        if 'zone_id' in accessibility_df.columns or 'o_zone_id' in accessibility_df.columns:
-                            zone_id_col = 'zone_id' if 'zone_id' in accessibility_df.columns else 'o_zone_id'
-                            
-                            zero_origin = accessibility_df[accessibility_df['origin_count'] == 0]
-                            if len(zero_origin) > 0:
-                                zero_origin_ids = zero_origin[zone_id_col].tolist()
-                                self._add_issue('WARNING', 
-                                              f'{len(zero_origin_ids)} zones have 0 origin_count (cannot reach any zones). Zone IDs: {zero_origin_ids[:20]}',
-                                              'zero_origin_count')
-                                print(f"  ⚠ Zones with 0 origin_count: {zero_origin_ids[:20]}")
-                                if len(zero_origin_ids) > 20:
-                                    print(f"     ... and {len(zero_origin_ids) - 20} more")
-                            
-                            zero_dest = accessibility_df[accessibility_df['destination_count'] == 0]
-                            if len(zero_dest) > 0:
-                                zero_dest_ids = zero_dest[zone_id_col].tolist()
-                                self._add_issue('WARNING', 
-                                              f'{len(zero_dest_ids)} zones have 0 destination_count (cannot be reached). Zone IDs: {zero_dest_ids[:20]}',
-                                              'zero_destination_count')
-                                print(f"  ⚠ Zones with 0 destination_count: {zero_dest_ids[:20]}")
-                                if len(zero_dest_ids) > 20:
-                                    print(f"     ... and {len(zero_dest_ids) - 20} more")
+                        total_zones = len(accessibility_df)
                         
-                        # Check if all zones are reachable
-                        avg_origin = origin_counts.mean()
-                        avg_dest = dest_counts.mean()
+                        print(f"  origin_count:      avg={origin_counts.mean():.1f}, max={origin_counts.max():.0f}")
+                        print(f"  destination_count: avg={dest_counts.mean():.1f}, max={dest_counts.max():.0f}")
                         
-                        if avg_origin < total_zones * 0.9 or avg_dest < total_zones * 0.9:
+                        # Check for poorly connected zones
+                        if zones_with_no_origins > 0 or zones_with_no_dests > 0:
                             self._add_issue('WARNING', 
-                                          f'Low connectivity: avg origin_count={avg_origin:.0f}, avg destination_count={avg_dest:.0f} (total zones={total_zones}). Suggestion: Add more connectors to improve zone accessibility.',
-                                          'accessibility_connectivity')
-                            print(f"  ⚠ Low connectivity detected - consider adding more connectors")
-                        else:
-                            print(f"  ✓ Good connectivity ({avg_origin:.0f}/{total_zones} zones reachable)")
+                                          f'{zones_with_no_origins} zones have no origins, {zones_with_no_dests} have no destinations',
+                                          'connectivity')
+                            issues.append(f"[WARNING] {zones_with_no_origins} zones with no origins, {zones_with_no_dests} with no destinations")
+                        
+                        # Check if majority of zones are poorly connected
+                        poorly_connected = (
+                            (accessibility_df['origin_count'] < 5) | 
+                            (accessibility_df['destination_count'] < 5)
+                        ).sum()
+                        
+                        if poorly_connected > total_zones * 0.5:
+                            self._add_issue('WARNING', 
+                                          f'{poorly_connected}/{total_zones} zones are poorly connected (less than 5 connections)',
+                                          'poor_connectivity')
+                            issues.append(f"[WARNING] {poorly_connected}/{total_zones} zones poorly connected")
                     else:
-                        issues.append("⚠ No valid origin_count or destination_count values")
+                        issues.append("[WARNING] No valid origin_count or destination_count values")
                 else:
-                    issues.append("⚠ origin_count or destination_count columns not found")
+                    issues.append("[WARNING] origin_count or destination_count columns not found")
                 
                 # Check accessibility values if present
                 if 'accessibility' in accessibility_df.columns:
@@ -328,18 +326,18 @@ class AccessibilityValidator:
                         if min_access < 0:
                             self._add_issue('ERROR', 'zone_accessibility.csv contains negative accessibility values', 'accessibility_values')
                             validation_result['passed'] = False
-                            issues.append("✗ Negative accessibility values found")
+                            issues.append("[ERROR] Negative accessibility values found")
                 
             except Exception as e:
                 self._add_issue('ERROR', f'Error reading zone_accessibility.csv: {str(e)}', 'accessibility_read')
                 validation_result['passed'] = False
-                issues.append(f"✗ Error reading file: {str(e)}")
+                issues.append(f"[ERROR] Error reading file: {str(e)}")
         
         # Check link_performance.csv (brief check)
         link_perf_file = os.path.join(self.network_dir, 'link_performance.csv')
         
         if not os.path.exists(link_perf_file):
-            issues.append("⚠ link_performance.csv - NOT FOUND")
+            issues.append("[WARNING] link_performance.csv - NOT FOUND")
         else:
             try:
                 link_perf_df = pd.read_csv(link_perf_file)
@@ -360,9 +358,9 @@ class AccessibilityValidator:
                         # Check if volumes are reasonable
                         if total_volume == 0:
                             self._add_issue('WARNING', 'Total traffic volume is zero. Check network connectivity.', 'traffic_volume')
-                            issues.append("⚠ No traffic assigned")
+                            issues.append("[WARNING] No traffic assigned")
                         else:
-                            print(f"  ✓ Traffic assigned: {total_volume:.0f} total volume")
+                            print(f"  [OK] Traffic assigned: {total_volume:.0f} total volume")
                 
             except Exception as e:
                 # Silently continue if link_performance can't be read
@@ -412,17 +410,6 @@ class AccessibilityValidator:
         
         return None
     
-    def _find_taplite_exe(self):
-        """Find TAPLite executable in GMNS_Tools folder"""
-        if not self.gmns_tools_dir or not os.path.exists(self.gmns_tools_dir):
-            return None
-        
-        for filename in os.listdir(self.gmns_tools_dir):
-            if filename.lower().endswith('.exe') and 'taplite' in filename.lower():
-                return os.path.abspath(os.path.join(self.gmns_tools_dir, filename))
-        
-        return None
-    
     def _find_settings_file(self):
         """Find settings.csv in GMNS_Tools folder"""
         if not self.gmns_tools_dir or not os.path.exists(self.gmns_tools_dir):
@@ -452,15 +439,16 @@ class AccessibilityValidator:
         print("\n" + "=" * 60)
         print("ACCESSIBILITY VALIDATION SUMMARY")
         print("=" * 60)
+        print(f"Method: DTALite Python package")
         print(f"Status: {self.results['summary']['status']}")
         print(f"Errors: {self.results['summary']['errors']}")
         print(f"Warnings: {self.results['summary']['warnings']}")
         print("-" * 60)
         
         if self.results['summary']['errors'] == 0 and self.results['summary']['warnings'] == 0:
-            print("\n✓ ACCESSIBILITY CHECK PASSED")
+            print("\n[OK] ACCESSIBILITY CHECK PASSED")
         elif self.results['summary']['errors'] == 0:
-            print("\n⚠ ACCESSIBILITY CHECK PASSED WITH WARNINGS")
+            print("\n[WARNING] ACCESSIBILITY CHECK PASSED WITH WARNINGS")
             # Show warnings
             warnings = [i for i in self.results['issues'] if i['severity'] == 'WARNING']
             if warnings:
@@ -468,13 +456,18 @@ class AccessibilityValidator:
                 for w in warnings[:5]:
                     print(f"  - {w['message']}")
         else:
-            print("\n✗ ACCESSIBILITY CHECK FAILED")
+            print("\n[ERROR] ACCESSIBILITY CHECK FAILED")
             # Show errors
             errors = [i for i in self.results['issues'] if i['severity'] == 'ERROR']
             if errors:
                 print("\nErrors:")
                 for e in errors[:5]:
                     print(f"  - {e['message']}")
+                
+                # Helpful suggestions
+                if any('DTALite package' in e['message'] for e in errors):
+                    print("\nSuggestion:")
+                    print("  Install DTALite: pip install DTALite")
     
     def _save_results(self):
         """Save validation results to JSON"""
@@ -489,14 +482,18 @@ class AccessibilityValidator:
 
 def main(network_dir='connected_network', gmns_tools_dir=None):
     """
-    Run accessibility validation
+    Run accessibility validation using DTALite Python package
     
     Usage:
-        python accessibility_validator.py [network_dir] [gmns_tools_dir]
+        python validate_accessibility.py [network_dir] [gmns_tools_dir]
         
     Args:
         network_dir: Directory containing node.csv and link.csv (default: connected_network)
-        gmns_tools_dir: Optional path to GMNS_Tools folder with DTALite (auto-detected if not provided)
+        gmns_tools_dir: Optional path to GMNS_Tools folder (auto-detected if not provided)
+        
+    Requirements:
+        - DTALite package: pip install DTALite
+        - settings.csv in GMNS_Tools or network directory
     """
     validator = AccessibilityValidator(network_dir, gmns_tools_dir)
     results = validator.validate()

@@ -98,11 +98,11 @@ class BaseMapValidator:
         print("-" * 60)
         
         if self.results['summary']['errors'] == 0 and self.results['summary']['warnings'] == 0:
-            print("\n✓ BASE MAP CHECK PASSED")
+            print("\n[OK] BASE MAP CHECK PASSED")
             print("  All checks completed successfully.")
             print("  Your network is ready for further validation.")
         elif self.results['summary']['errors'] == 0 and self.results['summary']['warnings'] > 0:
-            print("\n⚠ BASE MAP CHECK PASSED WITH WARNINGS")
+            print("\n[WARNING] BASE MAP CHECK PASSED WITH WARNINGS")
             
             # Categorize issues by file
             file_issues = {'node.csv': [], 'link.csv': [], 'shapefiles': [], 'other': []}
@@ -133,7 +133,7 @@ class BaseMapValidator:
                         print(f"    ... and {len(issues) - 3} more issue(s)")
                     print("")
         else:
-            print("\n✗ BASE MAP CHECK FAILED")
+            print("\n[ERROR] BASE MAP CHECK FAILED")
             print(f"  {self.results['summary']['errors']} error(s) must be fixed before proceeding.")
             
             # Categorize issues by file
@@ -165,7 +165,7 @@ class BaseMapValidator:
             print("")
             
             if file_issues['network mismatch']:
-                print("  ⚠ CRITICAL: node.csv and link.csv mismatch")
+                print("  [WARNING] CRITICAL: node.csv and link.csv mismatch")
                 print("     These files appear to be from DIFFERENT networks!")
                 for issue in file_issues['network mismatch'][:2]:
                     print(f"     - {issue}")
@@ -397,7 +397,7 @@ class BaseMapValidator:
             missing_to = self.links_df[~self.links_df['to_node_id'].isin(node_ids)]
             
             if len(missing_from) == 0 and len(missing_to) == 0:
-                print(f"  ✓ All {total_links} links connect to valid nodes")
+                print(f"  [OK] All {total_links} links connect to valid nodes")
                 print(f"    - All from_node_ids exist in node.csv")
                 print(f"    - All to_node_ids exist in node.csv")
                 
@@ -409,20 +409,20 @@ class BaseMapValidator:
                 }
             else:
                 if len(missing_from) > 0:
-                    print(f"  ✗ ERROR: {len(missing_from)} links have from_node_id not in node.csv")
+                    print(f"  [ERROR] ERROR: {len(missing_from)} links have from_node_id not in node.csv")
                     self._add_issue('ERROR',
                         f'{len(missing_from)} links have from_node_id not in node file. These are dangling links.',
                         'dangling_links')
                 else:
-                    print(f"  ✓ All from_node_ids are valid")
+                    print(f"  [OK] All from_node_ids are valid")
                     
                 if len(missing_to) > 0:
-                    print(f"  ✗ ERROR: {len(missing_to)} links have to_node_id not in node.csv")
+                    print(f"  [ERROR] ERROR: {len(missing_to)} links have to_node_id not in node.csv")
                     self._add_issue('ERROR',
                         f'{len(missing_to)} links have to_node_id not in node file. These are dangling links.',
                         'dangling_links')
                 else:
-                    print(f"  ✓ All to_node_ids are valid")
+                    print(f"  [OK] All to_node_ids are valid")
                 
                 self.results['topology_check'] = {
                     'status': 'ERROR',
@@ -469,7 +469,7 @@ class BaseMapValidator:
                 overlap = node_bbox.intersection(link_bbox).area / node_bbox.area if node_bbox.intersects(link_bbox) else 0
                 
                 if overlap < 0.5:  # Less than 50% overlap
-                    print(f"  ✗ ERROR: Links and nodes are in DIFFERENT geographic areas!")
+                    print(f"  [ERROR] ERROR: Links and nodes are in DIFFERENT geographic areas!")
                     print(f"    Overlap: {overlap*100:.1f}%")
                     print(f"    This suggests node.csv and link.csv are from different networks.")
                     self._add_issue('ERROR',
@@ -479,7 +479,7 @@ class BaseMapValidator:
                         self.results['topology_check']['status'] = 'ERROR'
                         self.results['topology_check']['geographic_overlap'] = f"{overlap*100:.1f}%"
                 elif overlap < 0.8:  # Between 50-80% overlap
-                    print(f"  ⚠ WARNING: Links and nodes have limited geographic overlap ({overlap*100:.1f}%)")
+                    print(f"  [WARNING] WARNING: Links and nodes have limited geographic overlap ({overlap*100:.1f}%)")
                     print(f"    Please verify node.csv and link.csv are from the same network.")
                     self._add_issue('WARNING',
                         f'Links and nodes have limited geographic overlap ({overlap*100:.1f}%). Verify they are from the same network.',
@@ -487,7 +487,7 @@ class BaseMapValidator:
                     if 'topology_check' in self.results:
                         self.results['topology_check']['geographic_overlap'] = f"{overlap*100:.1f}%"
                 else:
-                    print(f"  ✓ Links and nodes are in the same geographic area (overlap: {overlap*100:.1f}%)")
+                    print(f"  [OK] Links and nodes are in the same geographic area (overlap: {overlap*100:.1f}%)")
                     if 'topology_check' in self.results:
                         self.results['topology_check']['geographic_overlap'] = f"{overlap*100:.1f}%"
             
@@ -500,7 +500,7 @@ class BaseMapValidator:
                     mismatch_percent = (mismatched / min(100, len(links_with_geom))) * 100
                     
                     if mismatched > 50 or mismatch_percent > 50:  # More than 50 links or 50% mismatched
-                        print(f"  ✗ ERROR: {mismatched} links have geometry not matching node locations")
+                        print(f"  [ERROR] ERROR: {mismatched} links have geometry not matching node locations")
                         print(f"    This strongly suggests node.csv and link.csv are from different networks.")
                         self._add_issue('ERROR',
                             f'{mismatched} links have geometry inconsistent with node locations. This indicates node.csv and link.csv are likely from different networks.',
@@ -508,12 +508,12 @@ class BaseMapValidator:
                         if 'topology_check' in self.results:
                             self.results['topology_check']['status'] = 'ERROR'
                     elif mismatched > 0:
-                        print(f"  ⚠ WARNING: {mismatched} links have geometry not matching node locations")
+                        print(f"  [WARNING] WARNING: {mismatched} links have geometry not matching node locations")
                         self._add_issue('WARNING',
                             f'{mismatched} links have geometry inconsistent with node locations.',
                             'geometry_mismatch')
                     else:
-                        print(f"  ✓ Link geometries match node locations")
+                        print(f"  [OK] Link geometries match node locations")
                         
         except Exception as e:
             self._add_issue('ERROR', f'Topology check failed: {str(e)}', 'topology_check')
@@ -552,7 +552,7 @@ class BaseMapValidator:
                     'status': 'WARNING',
                     'message': 'No shapefiles to compare'
                 }
-                print(f"\n  ⚠ WARNING: No shapefiles found to verify spatial alignment")
+                print(f"\n  [WARNING] WARNING: No shapefiles found to verify spatial alignment")
                 return
             
             print(f"\n  Checking spatial alignment with {len(self.shapefiles)} shapefile(s)...")
@@ -581,15 +581,15 @@ class BaseMapValidator:
                     self._add_issue('ERROR', 
                         f'{shp_name} and network nodes are NOT in the same geographic area (overlap: {overlap_area*100:.1f}%). Check if you are using the correct shapefile.',
                         'spatial_mismatch')
-                    print(f"    ✗ ERROR: NOT in same area as network (overlap: {overlap_area*100:.1f}%)")
+                    print(f"    [ERROR] ERROR: NOT in same area as network (overlap: {overlap_area*100:.1f}%)")
                     print(f"      This shapefile appears to cover a different geographic region.")
                 elif status == 'WARNING':
                     self._add_issue('WARNING',
                         f'{shp_name} has limited overlap with network nodes ({overlap_area*100:.1f}%). Verify spatial alignment.',
                         'spatial_warning')
-                    print(f"    ⚠ WARNING: Limited overlap with network (overlap: {overlap_area*100:.1f}%)")
+                    print(f"    [WARNING] WARNING: Limited overlap with network (overlap: {overlap_area*100:.1f}%)")
                 else:
-                    print(f"    ✓ Spatial alignment OK (overlap: {overlap_area*100:.1f}%)")
+                    print(f"    [OK] Spatial alignment OK (overlap: {overlap_area*100:.1f}%)")
                 
         except Exception as e:
             self._add_issue('ERROR', f'Spatial overlap check failed: {str(e)}', 'spatial_check')
@@ -618,11 +618,11 @@ class BaseMapValidator:
             self._add_issue('ERROR', 
                 f'Found {dup_nodes} duplicate node_ids: {list(dup_ids)[:5]}{"..." if len(dup_ids) > 5 else ""}',
                 'duplicate_nodes')
-            print(f"  ✗ ERROR: Found {dup_nodes} duplicate node_ids")
+            print(f"  [ERROR] ERROR: Found {dup_nodes} duplicate node_ids")
             if len(dup_ids) <= 10:
                 print(f"    Duplicate IDs: {list(dup_ids)}")
         else:
-            print(f"  ✓ No duplicate node_ids")
+            print(f"  [OK] No duplicate node_ids")
         
         # 2. Check duplicate link_ids
         dup_links = self.links_df['link_id'].duplicated().sum()
@@ -635,11 +635,11 @@ class BaseMapValidator:
             self._add_issue('ERROR',
                 f'Found {dup_links} duplicate link_ids: {list(dup_ids)[:5]}{"..." if len(dup_ids) > 5 else ""}',
                 'duplicate_links')
-            print(f"  ✗ ERROR: Found {dup_links} duplicate link_ids")
+            print(f"  [ERROR] ERROR: Found {dup_links} duplicate link_ids")
             if len(dup_ids) <= 10:
                 print(f"    Duplicate IDs: {list(dup_ids)}")
         else:
-            print(f"  ✓ No duplicate link_ids")
+            print(f"  [OK] No duplicate link_ids")
         
         self.results['data_quality'] = checks
     

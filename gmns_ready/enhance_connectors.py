@@ -98,7 +98,7 @@ for zone_id in problematic_zones:
         row = zone_node.iloc[0]
         zone_coords[zone_id] = Point(row["x_coord"], row["y_coord"])
     else:
-        print(f"  ⚠️ Warning: Zone {zone_id} not found in node.csv")
+        print(f"  [WARNING] Warning: Zone {zone_id} not found in node.csv")
 
 print(f"  Built spatial index")
 print(f"  Found {len(zone_coords)}/{len(problematic_zones)} zone coordinates")
@@ -130,7 +130,7 @@ zone_connector_report = {}
 
 for idx, zone_id in enumerate(problematic_zones, 1):
     if zone_id not in zone_coords:
-        print(f"  ⚠️ Zone {zone_id} not found in node coordinates, skipping")
+        print(f"  [WARNING] Zone {zone_id} not found in node coordinates, skipping")
         continue
     
     print(f"  Processing zone {zone_id} ({idx}/{len(problematic_zones)})...", end='\r')
@@ -314,7 +314,7 @@ for idx, zone_id in enumerate(problematic_zones, 1):
             existing_connections.add((zone_id, origin_id))
             existing_connections.add((origin_id, zone_id))
 
-print(f"\n  ✓ Generated {len(new_connectors)} new connector links")
+print(f"\n  [OK] Generated {len(new_connectors)} new connector links")
 
 # ============================================================================
 # MERGE AND SAVE
@@ -343,7 +343,7 @@ final_link_df['link_id'] = range(1, len(final_link_df) + 1)
 # Save updated links
 output_file = os.path.join(CONNECTED_NETWORK_DIR, "link_updated.csv")
 final_link_df.to_csv(output_file, index=False)
-print(f"  ✓ Saved: {output_file}")
+print(f"  [OK] Saved: {output_file}")
 
 # ============================================================================
 # GENERATE REPORT
@@ -414,7 +414,7 @@ report_file = os.path.join(CONNECTED_NETWORK_DIR, "connector_editor_report.txt")
 with open(report_file, 'w') as f:
     f.write('\n'.join(report_lines))
 
-print(f"  ✓ Saved: {report_file}")
+print(f"  [OK] Saved: {report_file}")
 
 # Print summary to console
 print("\n" + "="*70)

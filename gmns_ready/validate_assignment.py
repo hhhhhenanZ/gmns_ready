@@ -62,11 +62,11 @@ class AssignmentValidator:
         """Check if required files exist"""
         if not os.path.exists(self.node_file):
             self.errors.append(f"node.csv not found in {self.network_dir}")
-            print(f"✗ ERROR: node.csv not found\n")
+            print(f"[ERROR] ERROR: node.csv not found\n")
             return False
         if not os.path.exists(self.link_file):
             self.errors.append(f"link.csv not found in {self.network_dir}")
-            print(f"✗ ERROR: link.csv not found\n")
+            print(f"[ERROR] ERROR: link.csv not found\n")
             return False
         return True
     
@@ -81,25 +81,25 @@ class AssignmentValidator:
             
             if missing_cols:
                 self.errors.append(f"node.csv missing columns: {', '.join(missing_cols)}")
-                print(f"✗ Missing required columns: {', '.join(missing_cols)}")
+                print(f"[ERROR] Missing required columns: {', '.join(missing_cols)}")
             else:
-                print(f"✓ Total nodes: {node_count}")
-                print(f"✓ Required columns present: {', '.join(required_cols)}")
+                print(f"[OK] Total nodes: {node_count}")
+                print(f"[OK] Required columns present: {', '.join(required_cols)}")
             
             # Check for zone_id
             if 'zone_id' in node_df.columns:
                 zone_count = len(node_df[node_df['node_id'] == node_df['zone_id']])
-                print(f"✓ Centroid nodes (zone_id = node_id): {zone_count}")
+                print(f"[OK] Centroid nodes (zone_id = node_id): {zone_count}")
                 self.stats['zone_count'] = zone_count
             else:
                 self.warnings.append("zone_id column not found in node.csv")
-                print(f"⚠ zone_id column not found")
+                print(f"[WARNING] zone_id column not found")
             
             self.stats['node_count'] = node_count
             
         except Exception as e:
             self.errors.append(f"Error reading node.csv: {str(e)}")
-            print(f"✗ Error reading node.csv: {str(e)}")
+            print(f"[ERROR] Error reading node.csv: {str(e)}")
     
     def _validate_links(self):
         """Validate link.csv VDF parameters"""
@@ -107,13 +107,13 @@ class AssignmentValidator:
             link_df = pd.read_csv(self.link_file)
             total_links = len(link_df)
             
-            print(f"✓ Total links: {total_links}")
+            print(f"[OK] Total links: {total_links}")
             
             # Check link_type
             if 'link_type' not in link_df.columns:
                 self.warnings.append("link_type column not found - assuming all links are type 1")
                 link_df['link_type'] = 1
-                print(f"⚠ link_type column not found, assuming type 1")
+                print(f"[WARNING] link_type column not found, assuming type 1")
             
             # Filter out connectors (type 0)
             link_df_filtered = link_df[link_df['link_type'] != 0].copy()
@@ -135,7 +135,7 @@ class AssignmentValidator:
                 
                 if param_name not in link_df_filtered.columns:
                     self.errors.append(f"Required parameter '{param_name}' not found")
-                    print(f"  ✗ NOT FOUND\n")
+                    print(f"  [ERROR] NOT FOUND\n")
                     
                     # Store missing parameter info in stats
                     self.stats['parameters'][param_name] = {
@@ -150,7 +150,7 @@ class AssignmentValidator:
                 
                 if len(param_values) == 0:
                     self.errors.append(f"Parameter '{param_name}' has no valid values")
-                    print(f"  ✗ No valid values\n")
+                    print(f"  [ERROR] No valid values\n")
                     
                     # Store empty parameter info in stats
                     self.stats['parameters'][param_name] = {
@@ -165,7 +165,7 @@ class AssignmentValidator:
                 negative_count = (param_values < 0).sum()
                 if negative_count > 0:
                     self.errors.append(f"Parameter '{param_name}' has {negative_count} negative values")
-                    print(f"  ✗ {negative_count} negative values found")
+                    print(f"  [ERROR] {negative_count} negative values found")
                 
                 # Check ranges
                 if 'max' in param_info and param_info['max'] is not None:
@@ -222,16 +222,16 @@ class AssignmentValidator:
             no_value_params = [p for p, info in self.stats['parameters'].items() if info.get('status') == 'no_valid_values']
             
             if found_params:
-                print(f"✓ Found and validated: {', '.join(found_params)}")
+                print(f"[OK] Found and validated: {', '.join(found_params)}")
             if missing_params:
-                print(f"✗ Missing columns: {', '.join(missing_params)}")
+                print(f"[ERROR] Missing columns: {', '.join(missing_params)}")
             if no_value_params:
-                print(f"✗ No valid values: {', '.join(no_value_params)}")
+                print(f"[ERROR] No valid values: {', '.join(no_value_params)}")
             print()
             
         except Exception as e:
             self.errors.append(f"Error reading link.csv: {str(e)}")
-            print(f"✗ Error reading link.csv: {str(e)}")
+            print(f"[ERROR] Error reading link.csv: {str(e)}")
     
     def _save_and_print_summary(self):
         """Save results and print summary"""
@@ -278,12 +278,12 @@ class AssignmentValidator:
                 print(f"{i}. {warning}")
         
         if not self.errors and not self.warnings:
-            print("\n✓ ALL CHECKS PASSED")
+            print("\n[OK] ALL CHECKS PASSED")
             print("  Network is ready for traffic assignment")
         elif not self.errors:
-            print("\n⚠ PASSED WITH WARNINGS")
+            print("\n[WARNING] PASSED WITH WARNINGS")
         else:
-            print("\n✗ VALIDATION FAILED")
+            print("\n[ERROR] VALIDATION FAILED")
             print("  Fix errors before running traffic assignment")
             
             # Add specific suggestions for missing parameters
