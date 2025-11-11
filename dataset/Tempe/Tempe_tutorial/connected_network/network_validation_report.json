@@ -1,0 +1,38 @@
+{
+  "timestamp": "2025-11-11T12:34:22.091475",
+  "network_dir": "connected_network",
+  "levels": {
+    "level1": {
+      "name": "Basic Data File Validation",
+      "checks": [],
+      "passed": true
+    },
+    "level2": {
+      "name": "Zone Consistency",
+      "checks": [],
+      "passed": true
+    },
+    "level3": {
+      "name": "Attribute Unit Check (Dual Systems)",
+      "checks": [],
+      "passed": true
+    }
+  },
+  "issues": [
+    {
+      "severity": "WARNING",
+      "category": "level3_capacity",
+      "message": "capacity in link.csv very high (max=99999). Typical range: 500-3000 per lane"
+    },
+    {
+      "severity": "WARNING",
+      "category": "level3_capacity",
+      "message": "capacity/lane in link.csv unusual (9926 veh/hr). Typical: 1500-2200"
+    }
+  ],
+  "summary": {
+    "status": "WARNING",
+    "errors": 0,
+    "warnings": 2
+  }
+}

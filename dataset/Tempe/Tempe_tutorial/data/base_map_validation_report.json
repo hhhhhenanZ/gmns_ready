@@ -1,0 +1,69 @@
+{
+  "timestamp": "2025-11-11T12:30:13.365757",
+  "location_info": {
+    "center_longitude": -111.93213224948869,
+    "center_latitude": 33.398514199342586,
+    "coordinate_system": "WGS84 (Lat/Lon)",
+    "node_bounds": {
+      "min_x": -111.9840523,
+      "max_x": -111.8751613,
+      "min_y": 33.3199306,
+      "max_y": 33.4666296
+    },
+    "suggested_location": "Tempe, Arizona United States"
+  },
+  "spatial_checks": {
+    "nodes": {
+      "status": "OK",
+      "feature_count": 2738,
+      "bounds": [
+        -111.9840523,
+        33.3199306,
+        -111.8751613,
+        33.4666296
+      ]
+    },
+    "Census_Tract_Boundary.shp": {
+      "status": "OK",
+      "feature_count": 44,
+      "bounds": [
+        -111.97847435629771,
+        33.320040006544886,
+        -111.87739323439392,
+        33.46460199965048
+      ],
+      "overlap_with_nodes": "60.0%"
+    }
+  },
+  "data_quality": {
+    "duplicate_nodes": {
+      "count": 0,
+      "status": "OK"
+    },
+    "duplicate_links": {
+      "count": 0,
+      "status": "OK"
+    }
+  },
+  "issues": [],
+  "summary": {
+    "status": "PASS",
+    "errors": 0,
+    "warnings": 0
+  },
+  "folder_structure": {
+    "data_folder_exists": true,
+    "node_csv_exists": true,
+    "link_csv_exists": true,
+    "shapefiles_found": 1,
+    "status": "OK"
+  },
+  "topology_check": {
+    "status": "OK",
+    "total_links": 4165,
+    "missing_from_nodes": 0,
+    "missing_to_nodes": 0,
+    "geographic_overlap": "100.0%"
+  },
+  "visualization_file": ".\\data\\base_map_validation.png"
+}

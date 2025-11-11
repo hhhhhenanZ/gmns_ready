@@ -1,0 +1,91 @@
+======================================================================
+CONNECTOR EDITOR - EXECUTION REPORT
+======================================================================
+Execution time: 2025-11-11 12:33:11
+Working directory: C:\Users\hnzhu\ASU Dropbox\Henan Zhu\TAPLite Project\Nov_zone2assignment\1111gmnsready_test\dataset\Tempe\connected_network
+
+CONFIGURATION:
+  Accessibility threshold: 10.0% (4 zones)
+  Search radius: 8000m
+  Target connectors per zone: 10
+    - Type 1: 3 connectors
+    - Type 2: 3 connectors
+    - Type 3: 2 connectors
+    - Type 4+: 2 connectors
+
+RESULTS:
+  Problematic zones identified: 4
+  New connector links generated: 80
+  Total links in updated file: 4549
+
+======================================================================
+NEW CONNECTORS BY ZONE
+======================================================================
+
+Zone 3: 10 new connectors
+----------------------------------------------------------------------
+  Type 1 (Highway/Freeway): 3 connectors
+    → Origin Node 78: 2212.66m
+    → Origin Node 78: 2212.66m
+    → Origin Node 79: 2263.16m
+  Type 3 (Collector): 2 connectors
+    → Origin Node 643: 6722.22m
+    → Origin Node 846: 6744.53m
+  Type 4+ (Local): 5 connectors
+    → Origin Node 2731 (Type 4): 259.28m
+    → Origin Node 1538 (Type 4): 284.76m
+    → Origin Node 1028 (Type 5): 332.99m
+    → Origin Node 1025 (Type 5): 387.12m
+    → Origin Node 1025 (Type 5): 387.12m
+
+Zone 5: 10 new connectors
+----------------------------------------------------------------------
+  Type 1 (Highway/Freeway): 3 connectors
+    → Origin Node 254: 1861.48m
+    → Origin Node 254: 1861.48m
+    → Origin Node 718: 1897.3m
+  Type 3 (Collector): 2 connectors
+    → Origin Node 1225: 391.18m
+    → Origin Node 1333: 392.32m
+  Type 4+ (Local): 5 connectors
+    → Origin Node 2686 (Type 5): 346.64m
+    → Origin Node 137 (Type 5): 353.17m
+    → Origin Node 2539 (Type 5): 354.41m
+    → Origin Node 2539 (Type 5): 354.41m
+    → Origin Node 136 (Type 5): 355.11m
+
+Zone 10: 10 new connectors
+----------------------------------------------------------------------
+  Type 1 (Highway/Freeway): 3 connectors
+    → Origin Node 254: 2488.32m
+    → Origin Node 254: 2488.32m
+    → Origin Node 718: 2528.71m
+  Type 3 (Collector): 2 connectors
+    → Origin Node 1326: 221.0m
+    → Origin Node 1325: 231.29m
+  Type 4+ (Local): 5 connectors
+    → Origin Node 485 (Type 5): 157.73m
+    → Origin Node 485 (Type 5): 157.73m
+    → Origin Node 484 (Type 5): 221.38m
+    → Origin Node 484 (Type 5): 221.38m
+    → Origin Node 2905 (Type 5): 256.57m
+
+Zone 18: 10 new connectors
+----------------------------------------------------------------------
+  Type 1 (Highway/Freeway): 3 connectors
+    → Origin Node 74: 2026.29m
+    → Origin Node 74: 2026.29m
+    → Origin Node 763: 2028.87m
+  Type 3 (Collector): 2 connectors
+    → Origin Node 643: 5282.98m
+    → Origin Node 846: 5301.66m
+  Type 4+ (Local): 5 connectors
+    → Origin Node 108 (Type 5): 331.75m
+    → Origin Node 108 (Type 5): 331.75m
+    → Origin Node 2581 (Type 5): 375.65m
+    → Origin Node 2581 (Type 5): 375.65m
+    → Origin Node 2581 (Type 5): 375.65m
+
+======================================================================
+END OF REPORT
+======================================================================

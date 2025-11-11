@@ -1,0 +1,134 @@
+{
+  "timestamp": "2025-11-11T12:34:34.790609",
+  "network_dir": "connected_network",
+  "statistics": {
+    "zone_count": 44,
+    "node_count": 2782,
+    "total_links": 4549,
+    "analysis_links": 4165,
+    "parameters": {
+      "vdf_alpha": {
+        "status": "ok",
+        "overall_avg": 0.14999999999999997,
+        "by_type": {
+          "1": {
+            "count": 519,
+            "avg": 0.15
+          },
+          "3": {
+            "count": 626,
+            "avg": 0.15
+          },
+          "4": {
+            "count": 2026,
+            "avg": 0.15
+          },
+          "5": {
+            "count": 994,
+            "avg": 0.14999999999999997
+          }
+        },
+        "is_constant_across_types": true
+      },
+      "vdf_beta": {
+        "status": "ok",
+        "overall_avg": 4.0,
+        "by_type": {
+          "1": {
+            "count": 519,
+            "avg": 4.0
+          },
+          "3": {
+            "count": 626,
+            "avg": 4.0
+          },
+          "4": {
+            "count": 2026,
+            "avg": 4.0
+          },
+          "5": {
+            "count": 994,
+            "avg": 4.0
+          }
+        },
+        "is_constant_across_types": true
+      },
+      "vdf_plf": {
+        "status": "ok",
+        "overall_avg": 1.0,
+        "by_type": {
+          "1": {
+            "count": 519,
+            "avg": 1.0
+          },
+          "3": {
+            "count": 626,
+            "avg": 1.0
+          },
+          "4": {
+            "count": 2026,
+            "avg": 1.0
+          },
+          "5": {
+            "count": 994,
+            "avg": 1.0
+          }
+        },
+        "is_constant_across_types": true
+      },
+      "vdf_fftt": {
+        "status": "ok",
+        "overall_avg": 0.13842256902761105,
+        "by_type": {
+          "1": {
+            "count": 519,
+            "avg": 0.15400770712909442
+          },
+          "3": {
+            "count": 626,
+            "avg": 0.08702875399361024
+          },
+          "4": {
+            "count": 2026,
+            "avg": 0.11020730503455085
+          },
+          "5": {
+            "count": 994,
+            "avg": 0.22016096579476863
+          }
+        },
+        "is_constant_across_types": false
+      },
+      "capacity": {
+        "status": "ok",
+        "overall_avg": 4234.381752701081,
+        "by_type": {
+          "1": {
+            "count": 519,
+            "avg": 6860.115606936416
+          },
+          "3": {
+            "count": 626,
+            "avg": 4845.047923322683
+          },
+          "4": {
+            "count": 2026,
+            "avg": 4634.945705824284
+          },
+          "5": {
+            "count": 994,
+            "avg": 1662.374245472837
+          }
+        },
+        "is_constant_across_types": false
+      }
+    }
+  },
+  "errors": [],
+  "warnings": [],
+  "summary": {
+    "status": "PASS",
+    "error_count": 0,
+    "warning_count": 0
+  }
+}
