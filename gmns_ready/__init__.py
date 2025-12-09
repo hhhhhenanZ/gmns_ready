@@ -2,7 +2,7 @@
 GMNS Ready - Professional toolkit for GMNS transportation networks
 """
 
-__version__ = '0.0.9'
+__version__ = '0.1.0'
 __author__ = 'Henan Zhu, Xuesong Zhou, Han Zheng'
 __email__ = 'henanzhu@asu.edu, xzhou74@asu.edu'
 
@@ -142,7 +142,8 @@ def clean_network():
     _run_script('clean_network.py')
 
 
-def build_network():
+def build_network(zone_search_radius=1000, link_df=None, node_df=None, node_taz_df=None,
+                  input_path=None, output_path=None):
     """
     Generate zone-connected network with connectors.
 
@@ -151,6 +152,29 @@ def build_network():
         - node.csv (from osm2gmns or clean_network)
         - link.csv (from osm2gmns or clean_network)
 
+    Parameters:
+    -----------
+    zone_search_radius : float or None, default=1000
+        Search radius in meters for connecting zones to road network.
+        - Set to 500, 1000, 1500, etc. for limited search radius
+        - Set to None for unlimited search (always find nearest link)
+        - Recommended: 1000 for urban areas, 1500 for suburban
+
+    link_df : pd.DataFrame, optional
+        Link dataframe. If None, reads from input_path/link.csv
+
+    node_df : pd.DataFrame, optional
+        Node dataframe. If None, reads from input_path/node.csv
+
+    node_taz_df : pd.DataFrame, optional
+        Zone dataframe. If None, reads from input_path/zone.csv
+
+    input_path : str, optional
+        Path to input CSV files. Default is current directory
+
+    output_path : str, optional
+        Path for output files. Default is current_dir/connected_network
+
     Outputs:
         - connected_network/ folder with:
           - node.csv (network + zones + activity nodes)
@@ -158,12 +182,35 @@ def build_network():
           - activity_node.csv
           - connector_links.csv
 
-    Example
-    -------
+    Returns:
+    --------
+    tuple : (final_link_df, final_node_df, connector_df)
+        Generated network dataframes
+
+    Examples:
+    ---------
     >>> import gmns_ready as gr
+
+    >>> # Default 1000m search radius
     >>> gr.build_network()
+
+    >>> # Custom search radius
+    >>> gr.build_network(zone_search_radius=500)
+
+    >>> # Unlimited search (always find nearest link)
+    >>> gr.build_network(zone_search_radius=None)
+
+    >>> # With dataframes (for programmatic use)
+    >>> link_df, node_df, connector_df = gr.build_network(
+    ...     zone_search_radius=1000,
+    ...     link_df=link_df,
+    ...     node_df=node_df,
+    ...     node_taz_df=zone_df
+    ... )
     """
-    _run_script('build_network.py')
+    from .build_network import build_network as _build_network
+    return _build_network(zone_search_radius, link_df, node_df, node_taz_df,
+                          input_path, output_path)
 
 
 def validate_basemap():
@@ -249,7 +296,8 @@ def validate_assignment():
         raise RuntimeError("Assignment validation failed. Check the report for details.")
 
 
-def enhance_connectors():
+def enhance_connectors(search_radius=1000, accessibility_threshold=0.10,
+                       min_connectors=6, input_path=None, output_path=None):
     """
     Add connectors for poorly connected zones.
 
@@ -258,16 +306,57 @@ def enhance_connectors():
         - connected_network/link.csv
         - connected_network/zone_accessibility.csv (from validate_accessibility)
 
-    Outputs:
-        - connected_network/link_updated.csv
-        - connected_network/connector_editor_report.txt
+    Parameters:
+    -----------
+    search_radius : int, default=1000
+        Maximum search radius in meters for finding candidate links.
+        - Recommended: 500, 1000, 1500
+        - Larger radius = more connection options but less precise
 
-    Example
-    -------
+    accessibility_threshold : float, default=0.10
+        Connectivity threshold as percentage of total zones (e.g., 0.10 = 10%).
+        Zones connecting to fewer than this percentage are enhanced.
+
+    min_connectors : int, default=6
+        Minimum total connectors to add per problematic zone.
+        Distributed across different link types (highways, arterials, collectors, local).
+
+    input_path : str, optional
+        Path containing connected_network directory. Default is current directory.
+
+    output_path : str, optional
+        Output directory for enhanced files. Default is input_path/connected_network.
+
+    Outputs:
+        - connected_network/link_updated.csv (enhanced link file)
+        - connected_network/connector_editor_report.txt (enhancement details)
+
+    Returns:
+    --------
+    tuple : (final_link_df, report_dict)
+        - final_link_df: Enhanced link dataframe
+        - report_dict: Dictionary with enhancement details
+
+    Examples:
+    ---------
     >>> import gmns_ready as gr
+
+    >>> # Default: 1000m search radius, 10% threshold
     >>> gr.enhance_connectors()
+
+    >>> # Smaller search radius for dense urban areas
+    >>> gr.enhance_connectors(search_radius=500)
+
+    >>> # More aggressive enhancement (15% threshold, 8 min connectors)
+    >>> gr.enhance_connectors(
+    ...     search_radius=1500,
+    ...     accessibility_threshold=0.15,
+    ...     min_connectors=8
+    ... )
     """
-    _run_script('enhance_connectors.py')
+    from .enhance_connectors import enhance_connectors as _enhance_connectors
+    return _enhance_connectors(search_radius, accessibility_threshold,
+                               min_connectors, input_path, output_path)
 
 
 # Public API

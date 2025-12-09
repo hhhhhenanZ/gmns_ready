@@ -2,8 +2,7 @@
 """
 Updated connector generation script
 Activities always connect to nearest zone
-Zones without activities connect to physical network
-Created on Mon Nov  3 10:50:14 2025
+Zones without activities connect to lower-level network links
 @author: hnzhu
 """
 import pandas as pd
@@ -15,121 +14,76 @@ from shapely import wkt
 from shapely.geometry import Point, box
 import geopandas as gpd
 
-# ============================================================================
-# CONFIGURATION
-# ============================================================================
-# For zone → road network connections
-# Set to a number (e.g., 5000) to limit search radius in meters
-# Set to None for unlimited distance (always connects to nearest link)
-#MAX_SEARCH_RADIUS_METERS_ZONES = 5000   # or None for no limit
 
-MAX_SEARCH_RADIUS_METERS_ZONES = None
-
-# Get current directory
-current_dir = os.getcwd()
-current_path = os.path.join(current_dir)
-output_path = os.path.join(current_dir, "connected_network")
-os.makedirs(output_path, exist_ok=True)
-
-link_file = os.path.join(current_path, "link.csv")
-node_file = os.path.join(current_path, "node.csv")
-node_taz_file = os.path.join(current_path, "zone.csv")
-
-# Import CSV files as DataFrames
-link_df = pd.read_csv(link_file)
-node_df = pd.read_csv(node_file)
-node_taz_df = pd.read_csv(node_taz_file)
-
-# Start timing
-start_time = time.time()
-
-
-print("CONNECTOR GENERATION")
-print(f"Configuration:")
-print(f"  - Activity nodes: Always connect to nearest zone")
-if MAX_SEARCH_RADIUS_METERS_ZONES is None:
-    print(f"  - Zone nodes: Always connect to nearest network link (no limit)")
-else:
-    print(f"  - Zone nodes: Connect to network within {MAX_SEARCH_RADIUS_METERS_ZONES}m radius")
-
-
-
-# %%
-def process_and_save_activity_node_data(node_df, node_taz_df, output_path=None):
-    """
-    Processes node_df by adding new_node_id and filtering rows with non-null zone_id, 
-    then saves the filtered DataFrame (activity_node_df) to a CSV file.
-    """
+def process_node_data(node_df, node_taz_df, output_path):
+    """Add new_node_id and separate activity nodes"""
     print("\nProcessing node data...")
-    max_node_id_taz = node_taz_df['node_id'].max()
+    max_taz_id = node_taz_df['node_id'].max()
     min_node_id = node_df['node_id'].min()
     
-    node_df['new_node_id'] = node_df['node_id'] + max_node_id_taz - min_node_id + 1
-    
+    node_df['new_node_id'] = node_df['node_id'] + max_taz_id - min_node_id + 1
     activity_node_df = node_df[node_df['zone_id'].notnull()]
     common_node_df = node_df[node_df['zone_id'].isnull()]
     
     print(f"  Activity nodes: {len(activity_node_df)}")
     print(f"  Regular nodes: {len(common_node_df)}")
     
-    # Save to output
     activity_node_df.to_csv(os.path.join(output_path, "activity_node.csv"), index=False)
-    #common_node_df.to_csv(os.path.join(output_path, "common_node.csv"), index=False)
-    
     return node_df, activity_node_df, common_node_df
 
 
-updated_node_df, activity_node_df, common_node_df = process_and_save_activity_node_data(
-    node_df, node_taz_df, output_path
-)
-
-
-#%%
-def update_link_df_with_new_node_ids(link_df, updated_node_df):
-    """
-    Returns a copy of link_df with from_node_id and to_node_id replaced by new_node_id values.
-    """
+def update_link_node_ids(link_df, node_df):
+    """Update link node IDs with new_node_id mapping"""
     print("\nUpdating link node IDs...")
-    updated_link_df = link_df.copy()
-    node_id_map = updated_node_df.set_index('node_id')['new_node_id'].to_dict()
-    updated_link_df['from_node_id'] = updated_link_df['from_node_id'].map(node_id_map)
-    updated_link_df['to_node_id'] = updated_link_df['to_node_id'].map(node_id_map)
+    updated_link = link_df.copy()
+    node_map = node_df.set_index('node_id')['new_node_id'].to_dict()
+    updated_link['from_node_id'] = updated_link['from_node_id'].map(node_map)
+    updated_link['to_node_id'] = updated_link['to_node_id'].map(node_map)
     
-    missing_from = updated_link_df['from_node_id'].isna().sum()
-    missing_to = updated_link_df['to_node_id'].isna().sum()
-    if missing_from > 0 or missing_to > 0:
-        print(f"  Warning: {missing_from} from_node_ids and {missing_to} to_node_ids could not be mapped.")
+    missing = updated_link[['from_node_id', 'to_node_id']].isnull().sum()
+    if missing.any():
+        print(f"  Warning: {missing['from_node_id']} from_node_ids, {missing['to_node_id']} to_node_ids unmapped")
     
-    return updated_link_df
+    return updated_link
 
 
-updated_link_df = update_link_df_with_new_node_ids(link_df, updated_node_df)
-
-
-#%%
-def generate_connector_links(activity_node_df, node_taz_df, updated_link_df, updated_node_df, 
-                             zone_to_network_radius, output_path=None):
+def generate_connectors(activity_node_df, node_taz_df, updated_link_df, updated_node_df, 
+                        zone_search_radius, output_path):
     """
-    Generate bi-directional connector links.
+    Generate bi-directional connector links
     - Activity nodes: Always connect to nearest zone
-    - Zones without activities: Connect to road network within radius
+    - Zones without activities: Connect to last two link_types within search radius
+    
+    Parameters:
+    -----------
+    zone_search_radius : float or None
+        Search radius in meters for zone-to-network connections
+        None = unlimited (always find nearest link)
+        Recommended: 500, 1000, etc.
     """
     connector_links = []
     zones_with_activities = set()
     
-    print("\n" + "="*10)
-    print("STEP 1: Connecting activity nodes to zones...")
-    print("="*10)
+    print("\n" + "="*80)
+    print("CONNECTOR GENERATION")
+    print("="*80)
+    print(f"Configuration:")
+    print(f"  - Activity nodes: Always connect to nearest zone")
+    if zone_search_radius is None:
+        print(f"  - Zone nodes: Always connect to nearest network link (no limit)")
+    else:
+        print(f"  - Zone nodes: Connect to network within {zone_search_radius}m radius")
     
     # Prepare geometries
-    has_boundary_geometry = 'boundary_geometry' in node_taz_df.columns
+    has_boundary = 'boundary_geometry' in node_taz_df.columns
     
-    if has_boundary_geometry:
-        print("  Using boundary-based matching")
+    if has_boundary:
+        print("  - Using boundary-based matching")
         if node_taz_df["boundary_geometry"].dtype == object:
             node_taz_df["boundary_geometry"] = node_taz_df["boundary_geometry"].apply(wkt.loads)
-        node_taz_df["boundary_geometry"] = node_taz_df["boundary_geometry"].apply(lambda geom: geom.buffer(0.0001))
+        node_taz_df["boundary_geometry"] = node_taz_df["boundary_geometry"].apply(lambda g: g.buffer(0.0001))
     
+    # Convert to GeoDataFrames (FIXED: Proper assignment)
     if node_taz_df["geometry"].dtype == object:
         node_taz_df["geometry"] = node_taz_df["geometry"].apply(wkt.loads)
     if not isinstance(node_taz_df, gpd.GeoDataFrame):
@@ -140,46 +94,44 @@ def generate_connector_links(activity_node_df, node_taz_df, updated_link_df, upd
     if not isinstance(updated_link_df, gpd.GeoDataFrame):
         updated_link_df = gpd.GeoDataFrame(updated_link_df, geometry="geometry", crs="EPSG:4326")
     
-    # Build spatial index
-    print("  Building spatial index...")
+    # Build spatial index and node coordinate lookup
+    print("\n" + "="*80)
+    print("STEP 1: Building spatial index...")
+    print("="*80)
     link_sindex = updated_link_df.sindex
+    node_coords = {row["new_node_id"]: (row["x_coord"], row["y_coord"]) 
+                   for _, row in updated_node_df.iterrows()}
     
-    # Create node coordinate lookup
-    node_coord_dict = {}
-    for _, node in updated_node_df.iterrows():
-        node_coord_dict[node["new_node_id"]] = (node["x_coord"], node["y_coord"])
+    # Determine lower-level link types (last two types)
+    all_link_types = sorted(updated_link_df['link_type'].unique())
+    lower_level_types = all_link_types[-2:] if len(all_link_types) >= 2 else all_link_types
+    print(f"  Available link_types: {all_link_types}")
+    print(f"  Lower-level types for zone connections: {lower_level_types}")
     
-    # Connect activity nodes to nearest zone (always)
+    # STEP 2: Connect activity nodes to zones
+    print("\n" + "="*80)
+    print("STEP 2: Connecting activity nodes to zones...")
+    print("="*80)
+    
     for _, activity in activity_node_df.iterrows():
         act_id = activity["new_node_id"]
         act_point = Point(activity["x_coord"], activity["y_coord"])
         
         matched_zone = None
-        match_distance = None
         
-        # Try boundary-based matching if boundary_geometry exists
-        if has_boundary_geometry:
+        # Try boundary matching first
+        if has_boundary:
             for _, zone in node_taz_df.iterrows():
                 if zone["boundary_geometry"].contains(act_point):
                     matched_zone = zone
-                    match_distance = geodesic((act_point.y, act_point.x), 
-                                             (zone["geometry"].y, zone["geometry"].x)).meters
                     break
         
-        # If no boundary match, find nearest zone
+        # Find nearest zone if no boundary match
         if matched_zone is None:
-            min_distance = float('inf')
-            nearest_zone = None
-            
-            for _, zone in node_taz_df.iterrows():
-                distance = geodesic((act_point.y, act_point.x), 
-                                  (zone["geometry"].y, zone["geometry"].x)).meters
-                if distance < min_distance:
-                    min_distance = distance
-                    nearest_zone = zone
-            
-            matched_zone = nearest_zone
-            match_distance = min_distance
+            distances = node_taz_df.apply(
+                lambda z: geodesic((act_point.y, act_point.x), 
+                                  (z["geometry"].y, z["geometry"].x)).meters, axis=1)
+            matched_zone = node_taz_df.loc[distances.idxmin()]
         
         taz_id = matched_zone["node_id"]
         taz_point = matched_zone["geometry"]
@@ -190,21 +142,18 @@ def generate_connector_links(activity_node_df, node_taz_df, updated_link_df, upd
             (taz_id, act_id, taz_point, act_point),
             (act_id, taz_id, act_point, taz_point)
         ]:
-            geometry = f"LINESTRING ({from_pt.x} {from_pt.y}, {to_pt.x} {to_pt.y})"
-            length = round(geodesic((from_pt.y, from_pt.x), (to_pt.y, to_pt.x)).meters, 2)
             connector_links.append({
                 "link_id": len(connector_links) + 1,
                 "from_node_id": from_id,
                 "to_node_id": to_id,
                 "dir_flag": 1,
-                "length": length,
+                "length": round(geodesic((from_pt.y, from_pt.x), (to_pt.y, to_pt.x)).meters, 2),
                 "lanes": 1,
                 "free_speed": 90,
                 "capacity": 99999,
                 "link_type_name": "connector",
                 "link_type": 0,
-                "geometry": geometry,
-                "allowed_uses": "auto",
+                "geometry": f"LINESTRING ({from_pt.x} {from_pt.y}, {to_pt.x} {to_pt.y})",
                 "from_biway": 1,
                 "is_link": 0
             })
@@ -212,150 +161,131 @@ def generate_connector_links(activity_node_df, node_taz_df, updated_link_df, upd
     print(f"  [OK] Connected {len(activity_node_df)} activity nodes to zones")
     print(f"  [OK] {len(zones_with_activities)} zones have activity connectors")
     
-    # Helper function: Find nearest link within search radius
-    def find_nearest_link_in_radius(zone_centroid, zone_id, search_radius):
-        """Find the nearest high-level link within the search radius using spatial index.
-        If search_radius is None, finds nearest link with no distance limit."""
-        
-        if search_radius is None:
-            # No limit - search all links
-            possible_matches = updated_link_df
-        else:
-            # Limited search using spatial index
-            search_radius_degrees = search_radius / 111320.0
-            
-            minx = zone_centroid.x - search_radius_degrees
-            maxx = zone_centroid.x + search_radius_degrees
-            miny = zone_centroid.y - search_radius_degrees
-            maxy = zone_centroid.y + search_radius_degrees
-            search_box = box(minx, miny, maxx, maxy)
-            
-            possible_matches_index = list(link_sindex.intersection(search_box.bounds))
-            possible_matches = updated_link_df.iloc[possible_matches_index]
-        
-        if possible_matches.empty:
-            return None
-        
-        best_link = None
-        best_link_distance = float('inf')
-        
-        for idx, link in possible_matches.iterrows():
-            origin_node_id = link["from_node_id"]
-            
-            if origin_node_id not in node_coord_dict:
-                continue
-            
-            origin_x, origin_y = node_coord_dict[origin_node_id]
-            origin_point = Point(origin_x, origin_y)
-            
-            distance = geodesic((zone_centroid.y, zone_centroid.x), 
-                              (origin_point.y, origin_point.x)).meters
-            
-            # Skip if beyond radius (only when radius is set)
-            if search_radius is not None and distance > search_radius:
-                continue
-            
-            # Prefer high-level links (type 1, 2, 3)
-            if link["link_type"] in [1, 2, 3]:
-                if best_link is None or \
-                   link["link_type"] < best_link["link_type"] or \
-                   (link["link_type"] == best_link["link_type"] and distance < best_link_distance):
-                    best_link = link
-                    best_link_distance = distance
-            elif best_link is None:
-                if distance < best_link_distance:
-                    best_link = link
-                    best_link_distance = distance
-        
-        return best_link
-    
-    # Connect zones WITHOUT activities to physical road network
-    print("\n" + "="*10)
-    print("STEP 2: Connecting zones to physical road network...")
-    print("="*10)
+    # STEP 3: Connect zones without activities to road network
+    print("\n" + "="*80)
+    print("STEP 3: Connecting zones to physical road network...")
+    print("="*80)
     
     zones_without_activities = [z for _, z in node_taz_df.iterrows() 
                                 if z["node_id"] not in zones_with_activities]
-    
     print(f"  Zones to connect: {len(zones_without_activities)}")
     
-    zones_beyond_search_radius = []
+    zones_beyond_radius = []
     
-    for zone_row in zones_without_activities:
-        taz_id = zone_row["node_id"]
-        zone_centroid = zone_row["geometry"]
+    def find_best_link(zone_centroid, search_radius, prefer_types):
+        """Find nearest link preferring specified types within radius"""
+        if search_radius is None:
+            possible = updated_link_df
+        else:
+            # Spatial search
+            deg_radius = search_radius / 111320.0
+            search_box = box(zone_centroid.x - deg_radius, zone_centroid.y - deg_radius,
+                           zone_centroid.x + deg_radius, zone_centroid.y + deg_radius)
+            possible_idx = list(link_sindex.intersection(search_box.bounds))
+            possible = updated_link_df.iloc[possible_idx]
         
+        if possible.empty:
+            return None
+        
+        best = None
+        best_dist = float('inf')
+        
+        for idx, link in possible.iterrows():
+            if link["from_node_id"] not in node_coords:
+                continue
+            
+            origin = Point(*node_coords[link["from_node_id"]])
+            dist = geodesic((zone_centroid.y, zone_centroid.x), (origin.y, origin.x)).meters
+            
+            if search_radius and dist > search_radius:
+                continue
+            
+            # Prefer lower-level types, then nearest (FIXED: Clear logic)
+            is_preferred = link["link_type"] in prefer_types
+            is_best_preferred = (best is not None) and (best["link_type"] in prefer_types)
+            
+            # Selection logic:
+            # 1. If no best yet, select this link
+            # 2. If this is preferred and best is not, select this
+            # 3. If both preferred or both not preferred, select nearest
+            if best is None:
+                best = link
+                best_dist = dist
+            elif is_preferred and not is_best_preferred:
+                best = link
+                best_dist = dist
+            elif is_preferred == is_best_preferred and dist < best_dist:
+                best = link
+                best_dist = dist
+        
+        return best
+    
+    for zone in zones_without_activities:
+        taz_id = zone["node_id"]
+        zone_centroid = zone["geometry"]
         best_link = None
         
         # Try boundary-based matching first
-        if has_boundary_geometry:
-            zone_boundary = zone_row["boundary_geometry"]
+        if has_boundary:
+            zone_boundary = zone["boundary_geometry"]
+            possible_idx = list(link_sindex.intersection(zone_boundary.bounds))
+            boundary_links = updated_link_df.iloc[possible_idx]
+            boundary_links = boundary_links[boundary_links.intersects(zone_boundary)]
             
-            possible_matches_index = list(link_sindex.intersection(zone_boundary.bounds))
-            zone_links = updated_link_df.iloc[possible_matches_index]
-            zone_links = zone_links[zone_links.intersects(zone_boundary)]
-            
-            if not zone_links.empty:
-                high_level_zone_links = zone_links[zone_links["link_type"].isin([1, 2, 3])]
-                
-                if high_level_zone_links.empty:
-                    best_link = zone_links.loc[zone_links["link_type"].idxmin()]
-                else:
-                    best_link = high_level_zone_links.loc[high_level_zone_links["link_type"].idxmin()]
+            if not boundary_links.empty:
+                # Prefer lower-level types
+                lower_links = boundary_links[boundary_links["link_type"].isin(lower_level_types)]
+                best_link = (lower_links if not lower_links.empty else boundary_links).loc[
+                    (lower_links if not lower_links.empty else boundary_links)["link_type"].idxmax()]
         
         # Radius search if no boundary match
         if best_link is None:
-            best_link = find_nearest_link_in_radius(zone_centroid, taz_id, zone_to_network_radius)
+            best_link = find_best_link(zone_centroid, zone_search_radius, lower_level_types)
             
             if best_link is None:
-                zones_beyond_search_radius.append(taz_id)
+                zones_beyond_radius.append(taz_id)
                 continue
         
         origin_node_id = best_link["from_node_id"]
-        
-        if origin_node_id not in node_coord_dict:
-            print(f"  [WARNING] Could not find origin node {origin_node_id}. Skipping zone {taz_id}.")
+        if origin_node_id not in node_coords:
+            print(f"  [WARNING] Missing origin node {origin_node_id}. Skipping zone {taz_id}.")
             continue
         
-        origin_x, origin_y = node_coord_dict[origin_node_id]
-        origin_point = Point(origin_x, origin_y)
+        origin_point = Point(*node_coords[origin_node_id])
         
         # Create bi-directional connectors
         for from_id, to_id, from_pt, to_pt in [
             (taz_id, origin_node_id, zone_centroid, origin_point),
             (origin_node_id, taz_id, origin_point, zone_centroid)
         ]:
-            geometry = f"LINESTRING ({from_pt.x} {from_pt.y}, {to_pt.x} {to_pt.y})"
-            length = round(geodesic((from_pt.y, from_pt.x), (to_pt.y, to_pt.x)).meters, 2)
             connector_links.append({
                 "link_id": len(connector_links) + 1,
                 "from_node_id": from_id,
                 "to_node_id": to_id,
                 "dir_flag": 1,
-                "length": length,
+                "length": round(geodesic((from_pt.y, from_pt.x), (to_pt.y, to_pt.x)).meters, 2),
                 "lanes": 1,
                 "free_speed": 90,
                 "capacity": 99999,
                 "link_type_name": "connector",
                 "link_type": 0,
-                "geometry": geometry,
-                "allowed_uses": "auto",
+                "geometry": f"LINESTRING ({from_pt.x} {from_pt.y}, {to_pt.x} {to_pt.y})",
                 "from_biway": 1,
                 "is_link": 0
             })
     
-    connected = len(zones_without_activities) - len(zones_beyond_search_radius)
+    connected = len(zones_without_activities) - len(zones_beyond_radius)
     print(f"  [OK] Connected {connected}/{len(zones_without_activities)} zones to network")
     
-    if zones_beyond_search_radius:
-        if zone_to_network_radius is None:
-            print(f"  Warning: {len(zones_beyond_search_radius)} zones could not be connected")
-        else:
-            print(f"  {len(zones_beyond_search_radius)} zones beyond {zone_to_network_radius}m radius")
-        print(f"     Zone IDs: {zones_beyond_search_radius}")
+    if zones_beyond_radius:
+        msg = "could not be connected" if zone_search_radius is None else f"beyond {zone_search_radius}m radius"
+        print(f"  [{len(zones_beyond_radius)} zones {msg}]")
+        print(f"     Zone IDs: {zones_beyond_radius}")
     
-    # Create final connector DataFrame
+    # Create connector DataFrame
     connector_df = pd.DataFrame(connector_links)
+    
+    # Add VDF columns
     connector_df["vdf_toll"] = 0
     connector_df["allowed_uses"] = None
     connector_df["vdf_alpha"] = 0.15
@@ -366,40 +296,25 @@ def generate_connector_links(activity_node_df, node_taz_df, updated_link_df, upd
     connector_df["free_speed_in_mph_raw"] = round(connector_df["vdf_free_speed_mph"] / 5) * 5
     connector_df["vdf_fftt"] = ((connector_df["length"] / connector_df["free_speed"]) * 0.06).round(2)
     
-    other_columns = ['ref_volume', 'base_volume', 'base_vol_auto', 'restricted_turn_nodes']
-    for other_column in other_columns:
-        connector_df[other_column] = None
+    for col in ['ref_volume', 'base_volume', 'base_vol_auto', 'restricted_turn_nodes']:
+        connector_df[col] = None
     
-    print(f"\n[OK] Total connector links generated: {len(connector_df)}")
+    print(f"\n[OK] Total connector links: {len(connector_df)}")
     
-    if output_path:
-        output_file = os.path.join(output_path, "connector_links.csv")
-        connector_df.to_csv(output_file, index=False)
-        print(f"  Saved: {output_file}")
+    output_file = os.path.join(output_path, "connector_links.csv")
+    connector_df.to_csv(output_file, index=False)
+    print(f"  Saved: {output_file}")
     
     return connector_df
 
 
-# Generate connectors
-connector_links_df = generate_connector_links(
-    activity_node_df, node_taz_df, updated_link_df, updated_node_df, 
-    MAX_SEARCH_RADIUS_METERS_ZONES, output_path
-)
-
-
-#%%
-def update_and_merge_links(updated_link_df, connector_links_df, output_path):
-    """
-    Merges updated_link_df with connector_links_df and saves as link.csv
-    """
-    print("\n" + "="*10)
+def merge_links(updated_link_df, connector_df, output_path):
+    """Merge network and connector links"""
+    print("\n" + "="*80)
     print("Merging links...")
-    print("="*10)
+    print("="*80)
     
-    if updated_link_df['from_node_id'].isnull().any() or updated_link_df['to_node_id'].isnull().any():
-        print("  Warning: Some from_node_id or to_node_id in updated_link_df are null.")
-    
-    # Add VDF columns
+    # Add VDF columns to network links
     updated_link_df["vdf_toll"] = 0
     updated_link_df["allowed_uses"] = None
     updated_link_df["vdf_alpha"] = 0.15
@@ -410,114 +325,186 @@ def update_and_merge_links(updated_link_df, connector_links_df, output_path):
     updated_link_df["free_speed_in_mph_raw"] = round(updated_link_df["vdf_free_speed_mph"] / 5) * 5
     updated_link_df["vdf_fftt"] = ((updated_link_df["length"] / updated_link_df["free_speed"]) * 0.06).round(2)
     
-    other_columns = ['ref_volume', 'base_volume', 'base_vol_auto', 'restricted_turn_nodes']
-    for other_column in other_columns:
-        updated_link_df[other_column] = None
+    for col in ['ref_volume', 'base_volume', 'base_vol_auto', 'restricted_turn_nodes']:
+        updated_link_df[col] = None
     
     # Align columns
-    all_columns = set(updated_link_df.columns).union(connector_links_df.columns)
-    
-    for col in all_columns:
+    all_cols = set(updated_link_df.columns).union(connector_df.columns)
+    for col in all_cols:
         if col not in updated_link_df.columns:
             updated_link_df[col] = None
-        if col not in connector_links_df.columns:
-            connector_links_df[col] = None
+        if col not in connector_df.columns:
+            connector_df[col] = None
     
-    connector_links_df = connector_links_df[updated_link_df.columns]
+    connector_df = connector_df[updated_link_df.columns]
     
-    # Merge
-    final_link_df = pd.concat([updated_link_df, connector_links_df], ignore_index=True)
-    final_link_df = final_link_df.sort_values(by=['from_node_id', 'to_node_id']).reset_index(drop=True)
-    final_link_df['link_id'] = range(1, len(final_link_df) + 1)
+    # Merge and sort
+    final_link = pd.concat([updated_link_df, connector_df], ignore_index=True)
+    final_link = final_link.sort_values(by=['from_node_id', 'to_node_id']).reset_index(drop=True)
+    final_link['link_id'] = range(1, len(final_link) + 1)
     
-    # Clean up
-    columns_to_remove = ["VDF_fftt", "VDF_toll_auto", "notes", "toll"]
-    final_link_df.drop(columns=[col for col in columns_to_remove if col in final_link_df.columns], inplace=True)
-    final_link_df['allowed_uses'] = 'drive'
+    # Cleanup
+    final_link.drop(columns=[c for c in ["VDF_fftt", "VDF_toll_auto", "notes", "toll"] 
+                            if c in final_link.columns], inplace=True)
+    final_link['allowed_uses'] = 'drive'
     
-    # Save as link.csv
     output_file = os.path.join(output_path, "link.csv")
-    final_link_df.to_csv(output_file, index=False)
+    final_link.to_csv(output_file, index=False)
     print(f"  [OK] Saved: {output_file}")
     
-    return final_link_df
+    return final_link
 
 
-final_link_df = update_and_merge_links(updated_link_df, connector_links_df, output_path)
-
-
-#%%
-def create_updated_node_df(updated_node_df, node_taz_df, output_path):
-    """
-    Creates updated node DataFrame and saves as node.csv
-    """
-    print("\n" + "="*10)
-    print("Creating updated node file...")
-    print("="*10)
+def create_node_file(updated_node_df, node_taz_df, output_path):
+    """Create final node file"""
+    print("\n" + "="*80)
+    print("Creating node file...")
+    print("="*80)
     
-    updated_node_df_copy = updated_node_df.copy()
-    node_taz_df_copy = node_taz_df.copy()
+    # Prepare node DataFrame
+    node_copy = updated_node_df.copy()
+    node_copy = node_copy.rename(columns={'node_id': 'old_node_id', 'new_node_id': 'node_id'})
+    node_copy['zone_id'] = None
     
-    # Rename columns
-    updated_node_df_copy = updated_node_df_copy.rename(columns={'node_id': 'old_node_id'})
-    updated_node_df_copy = updated_node_df_copy.rename(columns={'new_node_id': 'node_id'})
-    updated_node_df_copy['zone_id'] = None
-    
-    # Remove boundary_geometry if exists
-    if 'boundary_geometry' in node_taz_df_copy.columns:
-        node_taz_df_copy = node_taz_df_copy.drop(columns=['boundary_geometry'])
+    # Prepare zone DataFrame
+    zone_copy = node_taz_df.copy()
+    if 'boundary_geometry' in zone_copy.columns:
+        zone_copy = zone_copy.drop(columns=['boundary_geometry'])
     
     # Merge
-    Node_Updated_df = pd.concat([node_taz_df_copy, updated_node_df_copy], ignore_index=True)
-    Node_Updated_df = Node_Updated_df.sort_values(by=['node_id']).reset_index(drop=True)
+    final_node = pd.concat([zone_copy, node_copy], ignore_index=True)
+    final_node = final_node.sort_values(by=['node_id']).reset_index(drop=True)
     
-    if 'ctrl_type' in Node_Updated_df.columns:
-        Node_Updated_df = Node_Updated_df.drop(columns=['ctrl_type'])
+    if 'ctrl_type' in final_node.columns:
+        final_node = final_node.drop(columns=['ctrl_type'])
     
-    # Fix geometry column
-    for i in range(len(Node_Updated_df)):
-        geometry_value = Node_Updated_df.loc[i, 'geometry']
+    # Fix geometry
+    for i in range(len(final_node)):
+        geom = final_node.loc[i, 'geometry']
+        needs_fix = pd.isna(geom) or \
+                   (isinstance(geom, str) and geom.strip() == '') or \
+                   (hasattr(geom, 'is_empty') and geom.is_empty)
         
-        needs_geometry = False
-        
-        if pd.isna(geometry_value):
-            needs_geometry = True
-        elif isinstance(geometry_value, str):
-            if geometry_value.strip() == '':
-                needs_geometry = True
-        elif hasattr(geometry_value, 'is_empty'):
-            if geometry_value.is_empty:
-                needs_geometry = True
-        else:
-            needs_geometry = True
-        
-        if needs_geometry:
-            x_coord = Node_Updated_df.loc[i, 'x_coord']
-            y_coord = Node_Updated_df.loc[i, 'y_coord']
-            Node_Updated_df.loc[i, 'geometry'] = f"POINT ({x_coord} {y_coord})"
+        if needs_fix:
+            x, y = final_node.loc[i, 'x_coord'], final_node.loc[i, 'y_coord']
+            final_node.loc[i, 'geometry'] = f"POINT ({x} {y})"
     
-    # Save as node.csv
     output_file = os.path.join(output_path, "node.csv")
-    Node_Updated_df.to_csv(output_file, index=False)
+    final_node.to_csv(output_file, index=False)
     print(f"  [OK] Saved: {output_file}")
     
-    return Node_Updated_df
+    return final_node
 
 
-final_node_df = create_updated_node_df(updated_node_df, node_taz_df, output_path)
+# ============================================================================
+# MAIN FUNCTION
+# ============================================================================
 
-# Print final summary
-end_time = time.time()
-elapsed_time = end_time - start_time
+def build_network(zone_search_radius=1000, link_df=None, node_df=None, node_taz_df=None, 
+                  input_path=None, output_path=None):
+    """
+    Build connected transportation network with activity nodes and zone connectors.
+    
+    Parameters:
+    -----------
+    zone_search_radius : float or None, default=1000
+        Search radius in meters for connecting zones without activities to road network.
+        - Set to 500, 1000, 1500, etc. for limited search radius
+        - Set to None for unlimited search (always find nearest link)
+    
+    link_df : pd.DataFrame, optional
+        Link dataframe. If None, reads from input_path/link.csv
+    
+    node_df : pd.DataFrame, optional
+        Node dataframe. If None, reads from input_path/node.csv
+    
+    node_taz_df : pd.DataFrame, optional
+        Zone dataframe. If None, reads from input_path/zone.csv
+    
+    input_path : str, optional
+        Path to input CSV files. Default is current directory
+    
+    output_path : str, optional
+        Path for output files. Default is current_dir/connected_network
+        
+    Returns:
+    --------
+    tuple : (final_link_df, final_node_df, connector_df)
+        Generated network dataframes
+        
+    Examples:
+    ---------
+    >>> # Using dataframes (package usage)
+    >>> import gmns_ready as gr
+    >>> link_df, node_df, connector_df = gr.build_network(
+    ...     zone_search_radius=500, 
+    ...     link_df=link_df, 
+    ...     node_df=node_df, 
+    ...     node_taz_df=zone_df
+    ... )
+    
+    >>> # Using file paths (script usage)
+    >>> link_df, node_df, connector_df = gr.build_network(
+    ...     zone_search_radius=1000,
+    ...     input_path="./data",
+    ...     output_path="./output"
+    ... )
+    
+    >>> # Default: reads from current directory
+    >>> link_df, node_df, connector_df = gr.build_network()
+    """
+    start = time.time()
+    
+    # Set paths
+    if input_path is None:
+        input_path = os.getcwd()
+    if output_path is None:
+        output_path = os.path.join(input_path, "connected_network")
+    os.makedirs(output_path, exist_ok=True)
+    
+    # Load data if not provided
+    if link_df is None:
+        link_df = pd.read_csv(os.path.join(input_path, "link.csv"))
+    if node_df is None:
+        node_df = pd.read_csv(os.path.join(input_path, "node.csv"))
+    if node_taz_df is None:
+        node_taz_df = pd.read_csv(os.path.join(input_path, "zone.csv"))
+    
+    # Process data
+    updated_node_df, activity_node_df, common_node_df = process_node_data(
+        node_df, node_taz_df, output_path
+    )
+    updated_link_df = update_link_node_ids(link_df, updated_node_df)
+    
+    # Generate connectors
+    connector_df = generate_connectors(
+        activity_node_df, node_taz_df, updated_link_df, updated_node_df,
+        zone_search_radius, output_path
+    )
+    
+    # Merge and create final files
+    final_link_df = merge_links(updated_link_df, connector_df, output_path)
+    final_node_df = create_node_file(updated_node_df, node_taz_df, output_path)
+    
+    # Summary
+    elapsed = time.time() - start
+    print("\n" + "="*80)
+    print("COMPLETION SUMMARY")
+    print("="*80)
+    print(f"Execution time: {elapsed:.2f} seconds")
+    print(f"Output directory: {output_path}")
+    print(f"Files created: node.csv, link.csv, activity_node.csv, connector_links.csv")
+    print("="*80)
+    
+    return final_link_df, final_node_df, connector_df
 
-print("\n" + "="*10)
-print("COMPLETION SUMMARY")
-print("="*10)
-print(f"Total execution time: {elapsed_time:.2f} seconds")
-print(f"Output directory: {output_path}")
-print(f"Files created:")
-print(f"  - node.csv")
-print(f"  - link.csv")
-print(f"  - activity_node.csv")
-print(f"  - connector_links.csv")
-print("="*10)
+
+# ============================================================================
+# SCRIPT EXECUTION (when run directly)
+# ============================================================================
+
+if __name__ == "__main__":
+    # Run with default settings when executed as a script
+    # Files will be read from current directory
+    # Output will be saved to ./connected_network/
+    build_network(zone_search_radius=1000)
